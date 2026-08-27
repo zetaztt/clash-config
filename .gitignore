@@ -1,0 +1,21 @@
+# Local secrets
+proxies*.json
+data/proxies*.json
+
+# Generated Clash profiles contain credentials
+dist/
+*.generated.yaml
+
+# npm test and dependency artifacts
+node_modules/
+coverage/
+*.tsbuildinfo
+
+# Mihomo provider caches may contain node credentials
+proxy_providers/
+
+# Editor and OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

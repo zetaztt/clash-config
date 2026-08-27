@@ -1,0 +1,9 @@
+node_modules
+dist
+coverage
+proxy_providers
+data/v2rayn_routing_white.json
+data/v2rayn_routing_black.json
+*.generated.yaml
+package-lock.json
+.vscode

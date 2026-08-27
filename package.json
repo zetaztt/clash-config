@@ -1,0 +1,33 @@
+{
+	"name": "clash-config",
+	"version": "1.0.0",
+	"private": true,
+	"description": "Generate personal Clash Verge Rev / Mihomo profiles.",
+	"type": "module",
+	"scripts": {
+		"build": "tsx scripts/build.ts",
+		"format": "prettier --write .",
+		"format:check": "prettier --check .",
+		"lint": "eslint .",
+		"test": "tsx --test test/**/*.test.ts",
+		"typecheck": "tsc --noEmit"
+	},
+	"engines": {
+		"node": ">=24.3.0"
+	},
+	"dependencies": {
+		"yaml": "^2.9.0"
+	},
+	"devDependencies": {
+		"@types/node": "^24.13.3",
+		"eslint": "^9.39.5",
+		"eslint-import-resolver-typescript": "^4.4.5",
+		"eslint-plugin-import-x": "^4.16.1",
+		"eslint-plugin-unused-imports": "^4.4.1",
+		"jiti": "^2.6.1",
+		"prettier": "^3.8.4",
+		"tsx": "^4.23.12",
+		"typescript": "^5.9.3",
+		"typescript-eslint": "^8.65.0"
+	}
+}

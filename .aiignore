@@ -1,0 +1,24 @@
+# Git internals
+.git/
+
+# Real local secrets
+proxies*.json
+data/proxies*.json
+
+# Generated profiles and Mihomo caches can contain credentials
+dist/
+proxy_providers/
+*.generated.yaml
+
+# Dependencies and test coverage are reproducible and add noisy context
+node_modules/
+coverage/
+*.tsbuildinfo
+
+# Local editor and diagnostic artifacts
+.idea/
+.vscode/
+*.log
+*.tmp
+Thumbs.db
+.DS_Store
