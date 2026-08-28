@@ -20,14 +20,25 @@ export const rulesConfigs: MihomoRulesConfig[] = [
 		remarks: "静态住宅IP ChatGPT",
 		group: MihomoProxyGroup.Residential,
 		rules: {
-			[MihomoRuleType.DomainSuffix]: ["chatgpt.com", "openai.com", "oaistatic.com"],
+			[MihomoRuleType.DomainSuffix]: ["chatgpt.com", "openai.com", "workos.com"],
+			[MihomoRuleType.Domain]: [
+				"images.workoscdn.com",
+				"workos.imgix.net",
+			],
 		},
 	},
 	{
 		remarks: "静态住宅IP Claude",
 		group: MihomoProxyGroup.Residential,
 		rules: {
-			[MihomoRuleType.DomainSuffix]: ["claude.ai", "anthropic.com"],
+			[MihomoRuleType.DomainSuffix]: ["claude.ai", "claude.com", "anthropic.com"],
+		},
+	},
+	{
+		remarks: "静态住宅IP Cloudflare",
+		group: MihomoProxyGroup.Residential,
+		rules: {
+			[MihomoRuleType.DomainSuffix]: ["challenges.cloudflare.com"],
 		},
 	},
 	{
