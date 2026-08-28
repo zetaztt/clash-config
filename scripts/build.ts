@@ -6,13 +6,15 @@ import { stringify } from "yaml";
 
 import { createMihomoConfig } from "./config.ts";
 import {
-	mihomoProxyGroupNames,
+	MihomoProxyNodeGroup,
+	MihomoProxyPolicyGroup,
 	type BuildOptions,
 	type ProxiesConfig,
 	type ResidentialProxyConfig,
-} from "./mihomo-types.ts";
+} from "./config-types.ts";
+import { MihomoBuiltInPolicy } from "./mihomo-types.ts";
 
-export type { BuildOptions, ProxiesConfig } from "./mihomo-types.ts";
+export type { BuildOptions, ProxiesConfig } from "./config-types.ts";
 
 interface CommandLineOptions {
 	proxies?: string;
@@ -25,14 +27,10 @@ const projectRoot = path.resolve(scriptDirectory, "..");
 const defaultProxiesConfigPath = path.join(projectRoot, "data", "proxies.json");
 const defaultOutputPath = path.join(projectRoot, "dist", "clash-config.yaml");
 // Mihomo 按名称解析组成员；发生冲突时可能选中内置策略，而不是配置的住宅节点。
-const reservedProxyNames = new Set([
-	...Object.values(mihomoProxyGroupNames),
-	"REJECT",
-	"REJECT-DROP",
-	"PASS",
-	"PASS-RULE",
-	"COMPATIBLE",
-	"GLOBAL",
+const reservedProxyNames = new Set<string>([
+	...Object.values(MihomoProxyNodeGroup),
+	...Object.values(MihomoProxyPolicyGroup),
+	...Object.values(MihomoBuiltInPolicy),
 ]);
 
 function errorMessage(error: unknown): string {

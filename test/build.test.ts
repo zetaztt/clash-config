@@ -9,13 +9,12 @@ import { parse } from "yaml";
 import { buildConfig } from "../scripts/build.ts";
 import { createMihomoConfig, createMihomoRules, rulesConfigs } from "../scripts/config.ts";
 import {
-	MihomoProxyGroup,
-	MihomoRuleType,
-	mihomoProxyGroupNames,
-	type MihomoConfig,
+	MihomoProxyNodeGroup,
+	MihomoProxyPolicyGroup,
 	type MihomoRulesConfig,
 	type ProxiesConfig,
-} from "../scripts/mihomo-types.ts";
+} from "../scripts/config-types.ts";
+import { MihomoBuiltInPolicy, MihomoRuleType, type MihomoConfig } from "../scripts/mihomo-types.ts";
 
 function withTemporaryDirectory(callback: (directory: string) => void): void {
 	const directory = mkdtempSync(path.join(os.tmpdir(), "clash-config-test-"));
@@ -66,7 +65,7 @@ test("serializes rule blocks and grouped rule types in declaration order", () =>
 			createRulesConfig(
 				{
 					remarks: "住宅域名",
-					group: MihomoProxyGroup.Residential,
+					group: MihomoProxyPolicyGroup.RiskPolicy,
 					rules: {
 						[MihomoRuleType.DomainSuffix]: ["example.com", "example.org"],
 						[MihomoRuleType.Domain]: ["api.example.net"],
@@ -74,45 +73,63 @@ test("serializes rule blocks and grouped rule types in declaration order", () =>
 				},
 				{
 					remarks: "应用进程",
-					group: MihomoProxyGroup.Proxy,
+					group: MihomoProxyPolicyGroup.ProxyPolicy,
 					rules: { [MihomoRuleType.ProcessName]: ["example.exe"] },
 				},
 			),
 		),
 		[
-			"DOMAIN-SUFFIX,example.com,住宅节点",
-			"DOMAIN-SUFFIX,example.org,住宅节点",
-			"DOMAIN,api.example.net,住宅节点",
-			"PROCESS-NAME,example.exe,代理节点",
-			"MATCH,最终代理",
+			`DOMAIN-SUFFIX,example.com,${MihomoProxyPolicyGroup.RiskPolicy}`,
+			`DOMAIN-SUFFIX,example.org,${MihomoProxyPolicyGroup.RiskPolicy}`,
+			`DOMAIN,api.example.net,${MihomoProxyPolicyGroup.RiskPolicy}`,
+			`PROCESS-NAME,example.exe,${MihomoProxyPolicyGroup.ProxyPolicy}`,
+			`MATCH,${MihomoProxyPolicyGroup.FinalPolicy}`,
 		],
 	);
 });
 
-test("serializes target IP rule types with and without no-resolve independently", () => {
+test("adds no-resolve to target IP rules before GEOIP private only", () => {
 	assert.deepEqual(
 		createMihomoRules(
-			createRulesConfig({
-				remarks: "目标 IP 不解析",
-				group: MihomoProxyGroup.Direct,
-				rules: {
-					[MihomoRuleType.Domain]: ["example.com"],
-					[MihomoRuleType.IpCidr]: ["198.51.100.0/24"],
-					[MihomoRuleType.NoResolveIpCidr]: ["192.0.2.0/24"],
-					[MihomoRuleType.NoResolveIpCidr6]: ["2001:db8::/32"],
-					[MihomoRuleType.NoResolveGeoIp]: ["cn"],
-					[MihomoRuleType.SrcIpCidr]: ["198.51.100.0/24"],
+			createRulesConfig(
+				{
+					remarks: "边界前",
+					group: MihomoBuiltInPolicy.Direct,
+					rules: {
+						[MihomoRuleType.Domain]: ["example.com"],
+						[MihomoRuleType.IpCidr]: ["192.0.2.0/24"],
+						[MihomoRuleType.IpCidr6]: ["2001:db8::/32"],
+						[MihomoRuleType.GeoIp]: ["test"],
+						[MihomoRuleType.SrcIpCidr]: ["198.51.100.0/24"],
+					},
 				},
-			}),
+				{
+					remarks: "解析边界",
+					group: MihomoBuiltInPolicy.Direct,
+					rules: { [MihomoRuleType.GeoIp]: ["private"] },
+				},
+				{
+					remarks: "边界后",
+					group: MihomoProxyPolicyGroup.ProxyPolicy,
+					rules: {
+						[MihomoRuleType.IpCidr]: ["198.51.100.0/24"],
+						[MihomoRuleType.IpCidr6]: ["2001:db8:1::/48"],
+						[MihomoRuleType.GeoIp]: ["cn"],
+					},
+				},
+			),
 		),
 		[
 			"DOMAIN,example.com,DIRECT",
-			"IP-CIDR,198.51.100.0/24,DIRECT",
 			"IP-CIDR,192.0.2.0/24,DIRECT,no-resolve",
 			"IP-CIDR6,2001:db8::/32,DIRECT,no-resolve",
-			"GEOIP,cn,DIRECT,no-resolve",
+			"GEOIP,test,DIRECT,no-resolve",
 			"SRC-IP-CIDR,198.51.100.0/24,DIRECT",
-			"MATCH,最终代理",
+			"GEOIP,private,DIRECT",
+			`IP-CIDR,198.51.100.0/24,${MihomoProxyPolicyGroup.ProxyPolicy}`,
+			`IP-CIDR6,2001:db8:1::/48,${MihomoProxyPolicyGroup.ProxyPolicy}`,
+			`GEOIP,cn,${MihomoProxyPolicyGroup.ProxyPolicy}`,
+			`MATCH,${MihomoProxyPolicyGroup.FinalPolicy}`,
 		],
 	);
 });
@@ -124,27 +141,38 @@ test("keeps inlined rule structure valid", () => {
 	);
 
 	const rules = createMihomoRules(rulesConfigs);
-	assert.equal(rules[0], "GEOSITE,category-ads-all,广告拦截");
+	const nodeGroupNames = new Set<string>(Object.values(MihomoProxyNodeGroup));
+	assert.ok(rulesConfigs.every(({ group }) => !nodeGroupNames.has(group)));
+	assert.equal(rules[0], `GEOSITE,category-ads-all,${MihomoProxyPolicyGroup.AdPolicy}`);
 	assert.deepEqual(
 		rules.filter((rule) => rule.includes("category-ads-all")),
-		["GEOSITE,category-ads-all,广告拦截"],
+		[`GEOSITE,category-ads-all,${MihomoProxyPolicyGroup.AdPolicy}`],
 	);
-	assert.equal(rules.includes("DOMAIN-KEYWORD,adservice,广告拦截"), false);
-	assert.equal(rules.includes("DOMAIN-SUFFIX,doubleclick.net,广告拦截"), false);
-	assert.ok(rules.includes("DOMAIN,api.ip.sb,代理节点"));
-	assert.equal(rules.includes("DOMAIN-KEYWORD,api.ip.sb,代理节点"), false);
+	assert.equal(rules.includes(`DOMAIN-KEYWORD,adservice,${MihomoProxyPolicyGroup.AdPolicy}`), false);
+	assert.equal(rules.includes(`DOMAIN-SUFFIX,doubleclick.net,${MihomoProxyPolicyGroup.AdPolicy}`), false);
+	assert.equal(
+		rules.some((rule) => rule.split(",")[2] === MihomoProxyNodeGroup.ProxyNodes),
+		false,
+	);
+	assert.equal(
+		rules.some((rule) => rule.split(",")[2] === MihomoProxyNodeGroup.ResidentialNodes),
+		false,
+	);
+	assert.ok(rules.includes(`DOMAIN-SUFFIX,chatgpt.com,${MihomoProxyPolicyGroup.RiskPolicy}`));
+	assert.ok(rules.includes(`DOMAIN,api.ip.sb,${MihomoProxyPolicyGroup.ProxyPolicy}`));
+	assert.equal(rules.includes(`DOMAIN-KEYWORD,api.ip.sb,${MihomoProxyPolicyGroup.ProxyPolicy}`), false);
 	assert.ok(rules.includes("IP-CIDR,223.5.5.5/32,DIRECT,no-resolve"));
-	assert.ok(rules.includes("IP-CIDR,1.1.1.1/32,代理节点,no-resolve"));
+	assert.ok(rules.includes(`IP-CIDR,1.1.1.1/32,${MihomoProxyPolicyGroup.ProxyPolicy},no-resolve`));
 	assert.ok(rules.includes("IP-CIDR6,2400:3200::1/128,DIRECT,no-resolve"));
-	assert.ok(rules.includes("IP-CIDR6,2606:4700:4700::1111/128,代理节点,no-resolve"));
+	assert.ok(rules.includes(`IP-CIDR6,2606:4700:4700::1111/128,${MihomoProxyPolicyGroup.ProxyPolicy},no-resolve`));
 	assert.ok(rules.includes("GEOIP,private,DIRECT"));
 	assert.ok(rules.includes("GEOSITE,category-game-platforms-download@cn,DIRECT"));
 	assert.equal(rules.includes("IP-CIDR,155.133.224.0/22,DIRECT"), false);
-	assert.ok(rules.includes("GEOIP,facebook,代理节点"));
+	assert.ok(rules.includes(`GEOIP,facebook,${MihomoProxyPolicyGroup.ProxyPolicy}`));
 	assert.ok(rules.includes("GEOIP,cn,DIRECT"));
-	assertRulePrecedes(rules, "GEOSITE,apple-cn,DIRECT", "GEOSITE,apple,代理节点");
-	assertRulePrecedes(rules, "GEOSITE,gfw,代理节点", "GEOSITE,cn,DIRECT");
-	assertRulePrecedes(rules, "GEOSITE,greatfire,代理节点", "GEOSITE,cn,DIRECT");
+	assertRulePrecedes(rules, "GEOSITE,apple-cn,DIRECT", `GEOSITE,apple,${MihomoProxyPolicyGroup.ProxyPolicy}`);
+	assertRulePrecedes(rules, `GEOSITE,gfw,${MihomoProxyPolicyGroup.ProxyPolicy}`, "GEOSITE,cn,DIRECT");
+	assertRulePrecedes(rules, `GEOSITE,greatfire,${MihomoProxyPolicyGroup.ProxyPolicy}`, "GEOSITE,cn,DIRECT");
 
 	const privateIpIndex = rules.indexOf("GEOIP,private,DIRECT");
 	assert.ok(privateIpIndex >= 0);
@@ -158,12 +186,12 @@ test("keeps inlined rule structure valid", () => {
 	}
 
 	for (const service of ["facebook", "fastly", "google", "netflix", "telegram", "twitter"]) {
-		const serviceRule = `GEOIP,${service},代理节点`;
+		const serviceRule = `GEOIP,${service},${MihomoProxyPolicyGroup.ProxyPolicy}`;
 		assertRulePrecedes(rules, "GEOIP,private,DIRECT", serviceRule);
 		assertRulePrecedes(rules, serviceRule, "GEOIP,cn,DIRECT");
 	}
 	assert.equal(rules.includes("DOMAIN-SUFFIX,apple.com,DIRECT"), false);
-	assert.equal(rules.includes("DOMAIN,developer.apple.com,代理节点"), false);
+	assert.equal(rules.includes(`DOMAIN,developer.apple.com,${MihomoProxyPolicyGroup.ProxyPolicy}`), false);
 	assert.ok(
 		rulesConfigs.every(
 			({ rules: configuredRules }) =>
@@ -171,7 +199,7 @@ test("keeps inlined rule structure valid", () => {
 				&& configuredRules[MihomoRuleType.Network] === undefined,
 		),
 	);
-	assert.equal(rules.at(-1), "MATCH,最终代理");
+	assert.equal(rules.at(-1), `MATCH,${MihomoProxyPolicyGroup.FinalPolicy}`);
 });
 
 test("builds auto-updating Loyalsoldier DAT geodata settings", () => {
@@ -229,7 +257,10 @@ test("builds DNS settings that proxy encrypted overseas resolution", () => {
 			"geosite:private": ["system"],
 			"geosite:cn": ["https://dns.alidns.com/dns-query"],
 		},
-		nameserver: ["https://1.1.1.1/dns-query#代理节点", "https://8.8.8.8/dns-query#代理节点"],
+		nameserver: [
+			`https://1.1.1.1/dns-query#${MihomoProxyPolicyGroup.ProxyPolicy}`,
+			`https://8.8.8.8/dns-query#${MihomoProxyPolicyGroup.ProxyPolicy}`,
+		],
 		"proxy-server-nameserver": ["https://dns.alidns.com/dns-query", "https://doh.pub/dns-query"],
 		"direct-nameserver": ["https://dns.alidns.com/dns-query"],
 		"direct-nameserver-follow-policy": true,
@@ -256,27 +287,49 @@ test("builds a profile with arbitrary residential node names", () => {
 			config.proxies.map((proxy) => proxy.name),
 			["JP-IP", "US-IP"],
 		);
-		assert.ok(config.proxies.every((proxy) => proxy.type === "socks5" && proxy["dialer-proxy"] === "代理节点"));
-		assert.equal(config["proxy-groups"].length, 4);
+		assert.ok(
+			config.proxies.every(
+				(proxy) => proxy.type === "socks5" && proxy["dialer-proxy"] === MihomoProxyNodeGroup.ProxyNodes,
+			),
+		);
+		assert.ok(config.proxies.every((proxy) => proxy["dialer-proxy"] !== MihomoProxyPolicyGroup.ProxyPolicy));
+		assert.equal(
+			config["proxy-groups"].length,
+			Object.values(MihomoProxyNodeGroup).length + Object.values(MihomoProxyPolicyGroup).length,
+		);
 		assert.deepEqual(
 			config["proxy-groups"].map((group) => group.name),
-			["代理节点", "住宅节点", "广告拦截", "最终代理"],
+			[
+				MihomoProxyPolicyGroup.ProxyPolicy,
+				MihomoProxyPolicyGroup.RiskPolicy,
+				MihomoProxyNodeGroup.ProxyNodes,
+				MihomoProxyNodeGroup.ResidentialNodes,
+				MihomoProxyPolicyGroup.AdPolicy,
+				MihomoProxyPolicyGroup.FinalPolicy,
+			],
 		);
-		assert.deepEqual(config["proxy-groups"][0]?.use, ["airport"]);
-		assert.deepEqual(config["proxy-groups"][1]?.proxies, ["JP-IP", "US-IP"]);
-		assert.deepEqual(config["proxy-groups"][2]?.proxies, ["REJECT", "PASS"]);
-		assert.deepEqual(config["proxy-groups"][3]?.proxies, [
-			mihomoProxyGroupNames[MihomoProxyGroup.Proxy],
-			mihomoProxyGroupNames[MihomoProxyGroup.Residential],
-			mihomoProxyGroupNames[MihomoProxyGroup.Direct],
+		assert.deepEqual(config["proxy-groups"][0]?.proxies, [
+			MihomoProxyNodeGroup.ProxyNodes,
+			MihomoProxyNodeGroup.ResidentialNodes,
+		]);
+		assert.deepEqual(config["proxy-groups"][1]?.proxies, [
+			MihomoProxyNodeGroup.ResidentialNodes,
+			MihomoProxyPolicyGroup.ProxyPolicy,
+		]);
+		assert.deepEqual(config["proxy-groups"][2]?.use, ["airport"]);
+		assert.deepEqual(config["proxy-groups"][3]?.proxies, ["JP-IP", "US-IP"]);
+		assert.deepEqual(config["proxy-groups"][4]?.proxies, [MihomoBuiltInPolicy.Reject, MihomoBuiltInPolicy.Pass]);
+		assert.deepEqual(config["proxy-groups"][5]?.proxies, [
+			MihomoProxyPolicyGroup.ProxyPolicy,
+			MihomoBuiltInPolicy.Direct,
 		]);
 		assert.deepEqual(
 			config.rules.filter((rule) => rule.startsWith("MATCH,")),
-			["MATCH,最终代理"],
+			[`MATCH,${MihomoProxyPolicyGroup.FinalPolicy}`],
 		);
-		assert.ok(config.rules.includes("GEOSITE,category-ads-all,广告拦截"));
-		assert.equal(config.rules.includes("DOMAIN-KEYWORD,adservice,广告拦截"), false);
-		assert.equal(config.rules.includes("DOMAIN-SUFFIX,doubleclick.net,广告拦截"), false);
+		assert.ok(config.rules.includes(`GEOSITE,category-ads-all,${MihomoProxyPolicyGroup.AdPolicy}`));
+		assert.equal(config.rules.includes(`DOMAIN-KEYWORD,adservice,${MihomoProxyPolicyGroup.AdPolicy}`), false);
+		assert.equal(config.rules.includes(`DOMAIN-SUFFIX,doubleclick.net,${MihomoProxyPolicyGroup.AdPolicy}`), false);
 		assert.equal(
 			config.rules.some((rule) => rule.endsWith(",REJECT")),
 			false,
@@ -298,19 +351,15 @@ test("builds a profile with arbitrary residential node names", () => {
 		assert.equal(config.rules.includes("DOMAIN,epicgames-download1.akamaized.net,DIRECT"), false);
 		assert.equal(config.rules.includes("DOMAIN-SUFFIX,edgekey.net,DIRECT"), false);
 		assert.equal(config.rules.includes("DST-PORT,0-65535,DIRECT"), false);
-		assert.equal(config.rules.at(-1), "MATCH,最终代理");
+		assert.equal(config.rules.at(-1), `MATCH,${MihomoProxyPolicyGroup.FinalPolicy}`);
 	});
 });
 
 test("rejects residential node names that conflict with proxy groups or built-in policies", () => {
 	const reservedNames = [
-		mihomoProxyGroupNames[MihomoProxyGroup.Fallback],
-		"REJECT",
-		"REJECT-DROP",
-		"PASS",
-		"PASS-RULE",
-		"COMPATIBLE",
-		"GLOBAL",
+		...Object.values(MihomoProxyNodeGroup),
+		...Object.values(MihomoProxyPolicyGroup),
+		...Object.values(MihomoBuiltInPolicy),
 	];
 
 	for (const reservedName of reservedNames) {

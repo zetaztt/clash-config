@@ -1,22 +1,3 @@
-/** 一个具名住宅 SOCKS5 代理的端点和凭据。 */
-export interface ResidentialProxyConfig {
-	server: string;
-	port: number;
-	username: string;
-	password: string;
-}
-
-/** 用于构建 Mihomo 配置的敏感代理 Provider 和住宅代理输入。 */
-export interface ProxiesConfig {
-	airportUrl: string;
-	residentials: Record<string, ResidentialProxyConfig>;
-}
-
-export interface BuildOptions {
-	proxiesConfigPath?: string;
-	outputPath?: string;
-}
-
 export interface MihomoProfileSettings {
 	"store-selected": boolean;
 	"store-fake-ip": true;
@@ -83,25 +64,18 @@ export interface MihomoDnsSettings {
 	"direct-nameserver-follow-policy": boolean;
 }
 
-/** 生成配置中受支持的用户可见代理组。 */
-export enum MihomoProxyGroup {
-	Residential,
-	AdBlocking,
-	Proxy,
-	Direct,
-	Fallback,
+/** 当前配置和名称校验使用的 Mihomo 内置策略。 */
+export enum MihomoBuiltInPolicy {
+	Direct = "DIRECT",
+	Reject = "REJECT",
+	RejectDrop = "REJECT-DROP",
+	Pass = "PASS",
+	PassRule = "PASS-RULE",
+	Compatible = "COMPATIBLE",
+	Global = "GLOBAL",
 }
 
-/** Mihomo 配置中代理组枚举值对应的用户可见名称。 */
-export const mihomoProxyGroupNames: Record<MihomoProxyGroup, string> = {
-	[MihomoProxyGroup.Residential]: "住宅节点",
-	[MihomoProxyGroup.AdBlocking]: "广告拦截",
-	[MihomoProxyGroup.Proxy]: "代理节点",
-	[MihomoProxyGroup.Direct]: "DIRECT",
-	[MihomoProxyGroup.Fallback]: "最终代理",
-};
-
-/** Clash/Mihomo 规则的类型标识；需要额外参数的变体会一并编码，由生成器展开。 */
+/** Clash/Mihomo 规则的原生类型标识。 */
 export enum MihomoRuleType {
 	/** `DOMAIN,<完整域名>,<策略>`：精确匹配目标域名。 */
 	Domain = "DOMAIN",
@@ -113,16 +87,10 @@ export enum MihomoRuleType {
 	GeoSite = "GEOSITE",
 	/** `IP-CIDR,<IPv4 网段>,<策略>[,no-resolve]`：按目标 IPv4 网段匹配。 */
 	IpCidr = "IP-CIDR",
-	/** `IP-CIDR,<IPv4 网段>,<策略>,no-resolve`：匹配目标 IPv4 且不触发 DNS 解析。 */
-	NoResolveIpCidr = "IP-CIDR,no-resolve",
 	/** `IP-CIDR6,<IPv6 网段>,<策略>[,no-resolve]`：按目标 IPv6 网段匹配。 */
 	IpCidr6 = "IP-CIDR6",
-	/** `IP-CIDR6,<IPv6 网段>,<策略>,no-resolve`：匹配目标 IPv6 且不触发 DNS 解析。 */
-	NoResolveIpCidr6 = "IP-CIDR6,no-resolve",
 	/** `GEOIP,<地区代码>,<策略>[,no-resolve]`：按目标 IP 所属国家或地区匹配。 */
 	GeoIp = "GEOIP",
-	/** `GEOIP,<地区代码>,<策略>,no-resolve`：匹配目标 IP 地区且不触发 DNS 解析。 */
-	NoResolveGeoIp = "GEOIP,no-resolve",
 	/** `SRC-IP-CIDR,<来源网段>,<策略>`：按客户端来源 IP 网段匹配。 */
 	SrcIpCidr = "SRC-IP-CIDR",
 	/** `SRC-PORT,<来源端口>,<策略>`：按本地或客户端端口匹配。 */
@@ -140,16 +108,6 @@ export enum MihomoRuleType {
 	/** `MATCH,<策略>`：匹配所有剩余流量；由生成器自动追加为最后一条规则。 */
 	Match = "MATCH",
 }
-
-/** 具有匹配值、可在公开规则配置中声明的规则类型。 */
-export type MihomoConfigurableRuleType = Exclude<MihomoRuleType, MihomoRuleType.Match>;
-
-/** 按声明顺序构建的公开规则块；同类规则值按规则类型聚合在 `rules` 对象中。 */
-export type MihomoRulesConfig = {
-	remarks: string;
-	group: Exclude<MihomoProxyGroup, MihomoProxyGroup.Fallback>;
-	rules: Partial<Record<MihomoConfigurableRuleType, string[]>>;
-};
 
 /** Mihomo 配置文件使用的逗号分隔规则。 */
 export type MihomoRule = string;

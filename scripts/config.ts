@@ -1,66 +1,61 @@
 import {
-	MihomoProxyGroup,
-	MihomoRuleType,
-	mihomoProxyGroupNames,
-	type MihomoConfig,
-	type MihomoRule,
+	MihomoProxyNodeGroup,
+	MihomoProxyPolicyGroup,
 	type MihomoRulesConfig,
 	type ProxiesConfig,
-} from "./mihomo-types.ts";
+} from "./config-types.ts";
+import { MihomoBuiltInPolicy, MihomoRuleType, type MihomoConfig, type MihomoRule } from "./mihomo-types.ts";
 
 /** 按既定业务优先级声明公开路由规则块；块和块内规则类型顺序共同决定匹配优先级。 */
 export const rulesConfigs: MihomoRulesConfig[] = [
 	// 广告分类优先于后续业务出口；误拦例外必须作为独立规则块声明在此块之前。
 	{
 		remarks: "广告拦截",
-		group: MihomoProxyGroup.AdBlocking,
+		group: MihomoProxyPolicyGroup.AdPolicy,
 		rules: { [MihomoRuleType.GeoSite]: ["category-ads-all"] },
 	},
 	{
 		remarks: "静态住宅IP ChatGPT",
-		group: MihomoProxyGroup.Residential,
+		group: MihomoProxyPolicyGroup.RiskPolicy,
 		rules: {
 			[MihomoRuleType.DomainSuffix]: ["chatgpt.com", "openai.com", "workos.com"],
-			[MihomoRuleType.Domain]: [
-				"images.workoscdn.com",
-				"workos.imgix.net",
-			],
+			[MihomoRuleType.Domain]: ["images.workoscdn.com", "workos.imgix.net"],
 		},
 	},
 	{
 		remarks: "静态住宅IP Claude",
-		group: MihomoProxyGroup.Residential,
+		group: MihomoProxyPolicyGroup.RiskPolicy,
 		rules: {
 			[MihomoRuleType.DomainSuffix]: ["claude.ai", "claude.com", "anthropic.com"],
 		},
 	},
 	{
 		remarks: "静态住宅IP Cloudflare",
-		group: MihomoProxyGroup.Residential,
+		group: MihomoProxyPolicyGroup.RiskPolicy,
 		rules: {
 			[MihomoRuleType.DomainSuffix]: ["challenges.cloudflare.com"],
 		},
 	},
 	{
 		remarks: "代理 api.ip.sb",
-		group: MihomoProxyGroup.Proxy,
+		group: MihomoProxyPolicyGroup.ProxyPolicy,
 		rules: { [MihomoRuleType.Domain]: ["api.ip.sb"] },
 	},
 	{
 		remarks: "代理 Google",
-		group: MihomoProxyGroup.Proxy,
+		group: MihomoProxyPolicyGroup.ProxyPolicy,
 		rules: { [MihomoRuleType.GeoSite]: ["google"] },
 	},
 	{
 		remarks: "绕过 中国公共 DNS 域名",
-		group: MihomoProxyGroup.Direct,
+		group: MihomoBuiltInPolicy.Direct,
 		rules: {
 			[MihomoRuleType.DomainSuffix]: ["alidns.com", "doh.pub", "dot.pub", "360.cn", "onedns.net"],
 		},
 	},
 	{
 		remarks: "代理 海外公共 DNS 域名",
-		group: MihomoProxyGroup.Proxy,
+		group: MihomoProxyPolicyGroup.ProxyPolicy,
 		rules: {
 			[MihomoRuleType.DomainSuffix]: [
 				"cloudflare-dns.com",
@@ -76,14 +71,14 @@ export const rulesConfigs: MihomoRulesConfig[] = [
 	},
 	{
 		remarks: "绕过 局域网 域名",
-		group: MihomoProxyGroup.Direct,
+		group: MihomoBuiltInPolicy.Direct,
 		rules: {
 			[MihomoRuleType.GeoSite]: ["private"],
 		},
 	},
 	{
 		remarks: "绕过 国内游戏平台下载",
-		group: MihomoProxyGroup.Direct,
+		group: MihomoBuiltInPolicy.Direct,
 		rules: {
 			[MihomoRuleType.GeoSite]: ["category-game-platforms-download@cn"],
 			// 仅补充名称和用途明确指向 Steam 下载、但上游专项分类尚未收录的国内 CDN。
@@ -97,23 +92,23 @@ export const rulesConfigs: MihomoRulesConfig[] = [
 	// Loyalsoldier 的 apple-cn 是 apple 的直连子集，必须先匹配以免被宽泛分类覆盖。
 	{
 		remarks: "绕过 Apple-CN",
-		group: MihomoProxyGroup.Direct,
+		group: MihomoBuiltInPolicy.Direct,
 		rules: { [MihomoRuleType.GeoSite]: ["apple-cn"] },
 	},
 	{
 		remarks: "代理 Apple",
-		group: MihomoProxyGroup.Proxy,
+		group: MihomoProxyPolicyGroup.ProxyPolicy,
 		rules: { [MihomoRuleType.GeoSite]: ["apple"] },
 	},
 	// GFW 分类有意覆盖宽泛的中国域名分类。
 	{
 		remarks: "代理 GFW",
-		group: MihomoProxyGroup.Proxy,
+		group: MihomoProxyPolicyGroup.ProxyPolicy,
 		rules: { [MihomoRuleType.GeoSite]: ["gfw", "greatfire"] },
 	},
 	{
 		remarks: "绕过 中国 域名",
-		group: MihomoProxyGroup.Direct,
+		group: MihomoBuiltInPolicy.Direct,
 		rules: {
 			[MihomoRuleType.GeoSite]: ["cn"],
 		},
@@ -121,9 +116,9 @@ export const rulesConfigs: MihomoRulesConfig[] = [
 	// 域名策略优先；以下明确目标 IP 规则不主动触发解析。
 	{
 		remarks: "绕过 中国公共 DNS IP",
-		group: MihomoProxyGroup.Direct,
+		group: MihomoBuiltInPolicy.Direct,
 		rules: {
-			[MihomoRuleType.NoResolveIpCidr]: [
+			[MihomoRuleType.IpCidr]: [
 				"223.5.5.5/32",
 				"223.6.6.6/32",
 				"119.29.29.29/32",
@@ -151,7 +146,7 @@ export const rulesConfigs: MihomoRulesConfig[] = [
 				"117.50.60.30/32",
 				"52.80.60.30/32",
 			],
-			[MihomoRuleType.NoResolveIpCidr6]: [
+			[MihomoRuleType.IpCidr6]: [
 				"2400:3200::1/128",
 				"2400:3200:baba::1/128",
 				"2402:4e00::/128",
@@ -166,9 +161,9 @@ export const rulesConfigs: MihomoRulesConfig[] = [
 	},
 	{
 		remarks: "代理 海外公共 DNS IP",
-		group: MihomoProxyGroup.Proxy,
+		group: MihomoProxyPolicyGroup.ProxyPolicy,
 		rules: {
-			[MihomoRuleType.NoResolveIpCidr]: [
+			[MihomoRuleType.IpCidr]: [
 				"1.1.1.1/32",
 				"1.0.0.1/32",
 				"1.1.1.2/32",
@@ -200,7 +195,7 @@ export const rulesConfigs: MihomoRulesConfig[] = [
 				"77.88.8.7/32",
 				"77.88.8.3/32",
 			],
-			[MihomoRuleType.NoResolveIpCidr6]: [
+			[MihomoRuleType.IpCidr6]: [
 				"2606:4700:4700::1111/128",
 				"2606:4700:4700::1001/128",
 				"2606:4700:4700::1112/128",
@@ -238,7 +233,7 @@ export const rulesConfigs: MihomoRulesConfig[] = [
 	// 系统 hosts 可以提供目标 IP，但具体解析器选择仍由 DNS 配置决定。
 	{
 		remarks: "绕过 局域网 IP",
-		group: MihomoProxyGroup.Direct,
+		group: MihomoBuiltInPolicy.Direct,
 		rules: {
 			[MihomoRuleType.GeoIp]: ["private"],
 		},
@@ -246,33 +241,50 @@ export const rulesConfigs: MihomoRulesConfig[] = [
 	// 服务 IP 分类有意覆盖宽泛的中国 IP 分类。
 	{
 		remarks: "代理 海外服务 IP",
-		group: MihomoProxyGroup.Proxy,
+		group: MihomoProxyPolicyGroup.ProxyPolicy,
 		rules: {
 			[MihomoRuleType.GeoIp]: ["facebook", "fastly", "google", "netflix", "telegram", "twitter"],
 		},
 	},
 	{
 		remarks: "绕过 中国 IP",
-		group: MihomoProxyGroup.Direct,
+		group: MihomoBuiltInPolicy.Direct,
 		rules: {
 			[MihomoRuleType.GeoIp]: ["cn"],
 		},
 	},
 ];
 
-/** 按规则块与块内规则的声明顺序展开所有规则，再追加最终 MATCH。 */
+const targetIpRuleTypes: ReadonlySet<string> = new Set([
+	MihomoRuleType.IpCidr,
+	MihomoRuleType.IpCidr6,
+	MihomoRuleType.GeoIp,
+]);
+
+/**
+ * 按声明顺序展开规则，在目标 IP 解析边界前禁止规则主动解析，再追加最终 MATCH。
+ * `GEOIP,private,DIRECT` 是边界规则本身，因此它及后续目标 IP 规则均不附加 `no-resolve`。
+ */
 export function createMihomoRules(configs: MihomoRulesConfig[]): MihomoRule[] {
-	return [
-		...configs.flatMap(({ group, rules }) =>
-			Object.entries(rules).flatMap(([configuredType, values]) =>
-				values.map((value) => {
-					const [type, ...parameters] = configuredType.split(",");
-					return [type, value, mihomoProxyGroupNames[group], ...parameters].join(",");
-				}),
-			),
-		),
-		`${MihomoRuleType.Match},${mihomoProxyGroupNames[MihomoProxyGroup.Fallback]}`,
-	];
+	const result: MihomoRule[] = [];
+	let isBeforeTargetIpResolutionBoundary = true;
+
+	for (const { group, rules } of configs) {
+		for (const [type, values] of Object.entries(rules)) {
+			for (const value of values) {
+				if (type === MihomoRuleType.GeoIp && value === "private" && group === MihomoBuiltInPolicy.Direct) {
+					isBeforeTargetIpResolutionBoundary = false;
+				}
+
+				const parameters =
+					isBeforeTargetIpResolutionBoundary && targetIpRuleTypes.has(type) ? ["no-resolve"] : [];
+				result.push([type, value, group, ...parameters].join(","));
+			}
+		}
+	}
+
+	result.push(`${MihomoRuleType.Match},${MihomoProxyPolicyGroup.FinalPolicy}`);
+	return result;
 }
 
 export function createMihomoConfig(proxiesConfig: ProxiesConfig): MihomoConfig {
@@ -307,8 +319,8 @@ export function createMihomoConfig(proxiesConfig: ProxiesConfig): MihomoConfig {
 			},
 			// 显式指定代理组，避免海外 DoH 连接绕过路由规则而直接发出。
 			nameserver: [
-				`https://1.1.1.1/dns-query#${mihomoProxyGroupNames[MihomoProxyGroup.Proxy]}`,
-				`https://8.8.8.8/dns-query#${mihomoProxyGroupNames[MihomoProxyGroup.Proxy]}`,
+				`https://1.1.1.1/dns-query#${MihomoProxyPolicyGroup.ProxyPolicy}`,
+				`https://8.8.8.8/dns-query#${MihomoProxyPolicyGroup.ProxyPolicy}`,
 			],
 			// 独立的节点解析器用于打破“先连接代理才能解析代理节点”的循环依赖。
 			"proxy-server-nameserver": [domesticDns, "https://doh.pub/dns-query"],
@@ -344,32 +356,39 @@ export function createMihomoConfig(proxiesConfig: ProxiesConfig): MihomoConfig {
 			password: residential.password,
 			udp: true,
 			"ip-version": "ipv4",
-			"dialer-proxy": mihomoProxyGroupNames[MihomoProxyGroup.Proxy],
+			// 住宅节点必须经原始代理节点拨号；指向包含住宅节点的顶层代理组会形成循环。
+			"dialer-proxy": MihomoProxyNodeGroup.ProxyNodes,
 		})),
 		"proxy-groups": [
 			{
-				name: mihomoProxyGroupNames[MihomoProxyGroup.Proxy],
+				name: MihomoProxyPolicyGroup.ProxyPolicy,
+				type: "select",
+				proxies: [MihomoProxyNodeGroup.ProxyNodes, MihomoProxyNodeGroup.ResidentialNodes],
+			},
+			{
+				name: MihomoProxyPolicyGroup.RiskPolicy,
+				type: "select",
+				proxies: [MihomoProxyNodeGroup.ResidentialNodes, MihomoProxyPolicyGroup.ProxyPolicy],
+			},
+			{
+				name: MihomoProxyNodeGroup.ProxyNodes,
 				type: "select",
 				use: ["airport"],
 			},
 			{
-				name: mihomoProxyGroupNames[MihomoProxyGroup.Residential],
+				name: MihomoProxyNodeGroup.ResidentialNodes,
 				type: "select",
 				proxies: residentialNames,
 			},
 			{
-				name: mihomoProxyGroupNames[MihomoProxyGroup.AdBlocking],
+				name: MihomoProxyPolicyGroup.AdPolicy,
 				type: "select",
-				proxies: ["REJECT", "PASS"],
+				proxies: [MihomoBuiltInPolicy.Reject, MihomoBuiltInPolicy.Pass],
 			},
 			{
-				name: mihomoProxyGroupNames[MihomoProxyGroup.Fallback],
+				name: MihomoProxyPolicyGroup.FinalPolicy,
 				type: "select",
-				proxies: [
-					mihomoProxyGroupNames[MihomoProxyGroup.Proxy],
-					mihomoProxyGroupNames[MihomoProxyGroup.Residential],
-					mihomoProxyGroupNames[MihomoProxyGroup.Direct],
-				],
+				proxies: [MihomoProxyPolicyGroup.ProxyPolicy, MihomoBuiltInPolicy.Direct],
 			},
 		],
 		rules: createMihomoRules(rulesConfigs),
