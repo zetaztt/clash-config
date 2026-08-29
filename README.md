@@ -53,13 +53,13 @@ npm ci
 使用默认输入 `data/proxies.json` 生成 `dist/clash-config.yaml`：
 
 ```console
-npm run build
+npm run build-config
 ```
 
 也可以显式指定输入和输出路径：
 
 ```console
-npm run build -- --proxies ./data/proxies.personal.json --output ./dist/custom.generated.yaml
+npm run build-config -- --proxies ./data/proxies.personal.json --output ./dist/custom.generated.yaml
 ```
 
 输入通过校验后，生成器会直接覆盖目标文件。`dist/` 和 `*.generated.yaml` 已被 Git 忽略；
@@ -110,7 +110,7 @@ Loyalsoldier GeoSite 的 `category-ads-all` 分类会进入 `广告拦截` 组�
 `DIRECT`。选择结果会随其他代理组一起保存。如果分类规则发生误拦，应在广告规则块之前添加
 指向该域名正常出口的显式规则，不预置第二条广告规则。
 
-`scripts/config.ts` 中的 `rulesConfigs` 是有序规则块数组。外层数组顺序决定业务规则块的
+`src/config.ts` 中的 `rulesConfigs` 是有序规则块数组。外层数组顺序决定业务规则块的
 优先级，每个块的 `rules` 对象按规则类型聚合同类值。存在策略优先级关系时应拆成两个
 外层规则块；没有优先级差异的同策略规则直接聚合在一个块中。规则块只能选择策略组或允许的
 Mihomo 内置策略，不能直接选择 `代理节点` 或 `住宅节点`。

@@ -6,15 +6,15 @@ import test from "node:test";
 
 import { parse } from "yaml";
 
-import { buildConfig } from "../scripts/build.ts";
-import { createMihomoConfig, createMihomoRules, rulesConfigs } from "../scripts/config.ts";
+import { buildConfig } from "../scripts/build-config.ts";
+import { createMihomoConfig, createMihomoRules, rulesConfigs } from "../src/config.ts";
 import {
 	MihomoProxyNodeGroup,
 	MihomoProxyPolicyGroup,
 	type MihomoRulesConfig,
 	type ProxiesConfig,
-} from "../scripts/config-types.ts";
-import { MihomoBuiltInPolicy, MihomoRuleType, type MihomoConfig } from "../scripts/mihomo-types.ts";
+} from "../src/config-types.ts";
+import { MihomoBuiltInPolicy, MihomoRuleType, type MihomoConfig } from "../src/mihomo-types.ts";
 
 function withTemporaryDirectory(callback: (directory: string) => void): void {
 	const directory = mkdtempSync(path.join(os.tmpdir(), "clash-config-test-"));

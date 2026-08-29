@@ -15,7 +15,7 @@ export default defineConfig([
 		ignores: ["coverage/**", "dist/**", "node_modules/**", "proxy_providers/**", "*.generated.yaml"],
 	},
 	{
-		files: ["scripts/**/*.ts", "test/**/*.ts"],
+		files: ["scripts/**/*.ts", "src/**/*.ts", "test/**/*.ts"],
 		languageOptions: {
 			parser: tseslint.parser,
 			parserOptions: {
@@ -41,7 +41,7 @@ export default defineConfig([
 		},
 	},
 	{
-		files: ["scripts/**/*.ts"],
+		files: ["scripts/**/*.ts", "src/**/*.ts"],
 		rules: {
 			"import-x/no-extraneous-dependencies": [
 				"error",

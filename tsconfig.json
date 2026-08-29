@@ -12,5 +12,5 @@
 		"skipLibCheck": true,
 		"types": ["node"]
 	},
-	"include": ["eslint.config.ts", "prettier.config.ts", "scripts/**/*.ts", "test/**/*.ts"]
+	"include": ["eslint.config.ts", "prettier.config.ts", "scripts/**/*.ts", "src/**/*.ts", "test/**/*.ts"]
 }

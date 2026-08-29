@@ -4,17 +4,17 @@ import { fileURLToPath } from "node:url";
 
 import { stringify } from "yaml";
 
-import { createMihomoConfig } from "./config.ts";
+import { createMihomoConfig } from "../src/config.ts";
 import {
 	MihomoProxyNodeGroup,
 	MihomoProxyPolicyGroup,
 	type BuildOptions,
 	type ProxiesConfig,
 	type ResidentialProxyConfig,
-} from "./config-types.ts";
-import { MihomoBuiltInPolicy } from "./mihomo-types.ts";
+} from "../src/config-types.ts";
+import { MihomoBuiltInPolicy } from "../src/mihomo-types.ts";
 
-export type { BuildOptions, ProxiesConfig } from "./config-types.ts";
+export type { BuildOptions, ProxiesConfig } from "../src/config-types.ts";
 
 interface CommandLineOptions {
 	proxies?: string;
@@ -161,7 +161,7 @@ function parseArguments(arguments_: string[]): CommandLineOptions {
 }
 
 function printHelp(): void {
-	console.log(`Usage: npm run build -- [options]
+	console.log(`Usage: npm run build-config -- [options]
 
 Options:
   --proxies <path>  Proxies JSON file (default: data/proxies.json)

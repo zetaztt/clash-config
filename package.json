@@ -5,7 +5,7 @@
 	"description": "Generate personal Clash Verge Rev / Mihomo profiles.",
 	"type": "module",
 	"scripts": {
-		"build": "tsx scripts/build.ts",
+		"build-config": "tsx scripts/build-config.ts",
 		"format": "prettier --write .",
 		"format:check": "prettier --check .",
 		"lint": "eslint .",

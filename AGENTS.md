@@ -29,9 +29,9 @@
 
 ## 代码职责
 
-- `scripts/config.ts` 保存公开、类型化的 Mihomo 配置和所有内联路由规则，包括当前的住宅代理链路；私有值只能通过 `ProxiesConfig` 参数注入。
-- `scripts/mihomo-types.ts` 保存本项目实际使用的 Mihomo 原生配置子集；`scripts/config-types.ts` 保存项目自定义的代理输入、构建选项、代理组和规则配置类型。
-- `scripts/build.ts` 负责命令行参数、私有设置校验、YAML 序列化和输出覆盖。
+- `src/config.ts` 保存公开、类型化的 Mihomo 配置和所有内联路由规则，包括当前的住宅代理链路；私有值只能通过 `ProxiesConfig` 参数注入。
+- `src/mihomo-types.ts` 保存本项目实际使用的 Mihomo 原生配置子集；`src/config-types.ts` 保存项目自定义的代理输入、构建选项、代理组和规则配置类型。
+- `scripts/build-config.ts` 负责命令行参数、私有设置校验、YAML 序列化和输出覆盖。
 - `test/` 使用 Node.js test runner 和 `tsx`，以合成配置验证固定配置结构与路由不变量，并只在系统临时目录中生成输出。
 - `README.md` 负责面向用户的安装、设置、生成和导入说明；AGENTS.md 只记录 Agent 不易可靠推断的约束与流程。
 
@@ -66,7 +66,7 @@
 - 修改设置字段、生成器、序列化、文件替换、路由或配置结构：除类型检查和测试外，在系统临时目录创建合成代理设置并生成配置：
 
     ```text
-    npm exec tsx -- scripts/build.ts --proxies <系统临时目录中的合成 JSON> --output <系统临时目录中的路径>
+    npm exec tsx -- scripts/build-config.ts --proxies <系统临时目录中的合成 JSON> --output <系统临时目录中的路径>
     ```
 
 所有自动验证只能使用测试内构造或系统临时目录中的合成值，生成输出必须放在系统临时目录并在验证后删除。不得使用或验证真实的 `proxies.json`。
