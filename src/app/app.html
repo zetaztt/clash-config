@@ -4,144 +4,226 @@
 		<h1>把代理链路，<br /><span>留在浏览器里。</span></h1>
 		<p class="intro">
 			填写机场订阅和住宅代理，立即生成可导入 Clash Verge Rev / Mihomo 的
-			YAML。没有上传，没有账户，也不会保存凭据。
+			YAML。没有上传，没有账户，填写内容会自动保存在当前浏览器。
 		</p>
-		<div class="privacy-note"><span aria-hidden="true">●</span>所有处理仅发生在当前页面</div>
+		<div class="privacy-note"><span aria-hidden="true">●</span>仅在本机浏览器处理和保存</div>
 	</header>
 
-	<form class="config-card" [formGroup]="form" (ngSubmit)="downloadConfig()" novalidate>
-		<section class="section-block" aria-labelledby="airport-heading">
-			<div class="section-heading">
-				<div>
-					<span class="step">01</span>
-					<h2 id="airport-heading">机场订阅</h2>
+	<section class="config-card overview" aria-label="当前配置概要">
+		<div class="overview-section">
+			<span class="step">01</span>
+			<div>
+				<div class="overview-heading">
+					<div>
+						<h2>机场订阅</h2>
+						<p>{{ summary().airport }}</p>
+					</div>
+					<button class="summary-edit-button" type="button" (click)="openSubscriptionEditor()">编辑</button>
 				</div>
-				<p>HTTP 或 HTTPS 订阅地址</p>
 			</div>
-
-			<label for="airport-url">Airport URL</label>
-			<input
-				id="airport-url"
-				type="url"
-				formControlName="airportUrl"
-				placeholder="https://example.com/subscription?token=..."
-				spellcheck="false"
-				autocomplete="off" />
-			@if (form.controls.airportUrl.touched && form.controls.airportUrl.invalid) {
-			<p class="field-error">请输入完整的 HTTP 或 HTTPS 订阅地址。</p>
-			}
-		</section>
-
-		<section class="section-block residential-section" aria-labelledby="residential-heading">
-			<div class="section-heading">
-				<div>
-					<span class="step">02</span>
-					<h2 id="residential-heading">住宅代理</h2>
+		</div>
+		<div class="overview-section residential-overview">
+			<span class="step">02</span>
+			<div>
+				<div class="overview-heading">
+					<div>
+						<h2>住宅节点</h2>
+						<p>{{ summary().residentials.length }} 个节点</p>
+					</div>
+					<button class="summary-edit-button" type="button" (click)="addResidential()">添加节点</button>
 				</div>
-				<button class="add-button" type="button" (click)="addResidential()">
-					<span aria-hidden="true">＋</span> 添加节点
+				<ul class="node-summary">
+					@for (residential of summary().residentials; track residential.name; let index = $index) {
+					<li>
+						<div>
+							<strong>{{ residential.name || '未命名节点 ' + (index + 1) }}</strong
+							><span>{{ residential.server || '服务器待填写' }}</span>
+						</div>
+						<button class="summary-edit-button" type="button" (click)="openResidentialEditor(index)">
+							编辑
+						</button>
+					</li>
+					}
+				</ul>
+			</div>
+		</div>
+		<footer class="action-bar">
+			<div><strong>配置仅在本机浏览器处理</strong><span>订阅令牌、用户名和密码不会在主页显示</span></div>
+			<div class="action-buttons">
+				<button class="copy-button" type="button" (click)="copyConfig()">复制配置</button>
+				<button class="download-button" type="button" (click)="downloadConfig()">
+					生成并下载 YAML <span aria-hidden="true">↓</span>
 				</button>
 			</div>
+		</footer>
+	</section>
 
-			<div class="residential-list" formArrayName="residentials">
-				@for (residential of residentials.controls; track residential; let index = $index) {
-				<fieldset class="residential-card" [formGroupName]="index">
-					<legend>住宅节点 {{ index + 1 }}</legend>
-					<button
-						class="remove-button"
-						type="button"
-						[disabled]="residentials.length === 1"
-						(click)="removeResidential(index)"
-						[attr.aria-label]="'删除住宅节点 ' + (index + 1)">
-						删除
-					</button>
+	@if (generationError()) {
+	<p class="status-message error-status" role="alert">{{ generationError() }}</p>
+	} @if (autoSaveError()) {
+	<p class="status-message error-status" role="alert">浏览器存储不可用，当前编辑内容可能无法自动保存。</p>
+	} @if (downloadComplete()) {
+	<p class="status-message success-status" role="status">配置已生成。请妥善保管下载文件，其中包含私有凭据。</p>
+	} @if (copyComplete()) {
+	<p class="status-message success-status" role="status">
+		配置已复制到剪切板，其中包含私有凭据，请及时粘贴并妥善保管。
+	</p>
+	}
 
-					<div class="field field-wide">
-						<label [for]="'name-' + index">节点名称</label>
+	<footer class="page-footer">
+		<span>CLASH CONFIG / BROWSER EDITION</span><span>凭据会明文保存在此站点的浏览器存储与下载文件中</span>
+	</footer>
+</main>
+
+@if (activeDialog() === "subscription") {
+<div class="modal-backdrop" role="presentation" (click)="closeDialog()">
+	<form
+		class="modal compact-modal subscription-modal"
+		[formGroup]="form"
+		(ngSubmit)="closeDialog()"
+		novalidate
+		role="dialog"
+		aria-modal="true"
+		aria-labelledby="subscription-heading"
+		(click)="$event.stopPropagation()">
+		<header class="modal-heading">
+			<div>
+				<span class="step">订阅</span>
+				<h2 id="subscription-heading">编辑机场订阅</h2>
+			</div>
+			<button class="close-button" type="button" (click)="closeDialog()" aria-label="关闭订阅编辑窗口">×</button>
+		</header>
+		<div class="modal-body">
+			<section class="section-block">
+				<label for="airport-url">Airport URL</label
+				><input
+					id="airport-url"
+					type="url"
+					formControlName="airportUrl"
+					placeholder="https://example.com/subscription?token=..."
+					spellcheck="false"
+					autocomplete="off" />@if (form.controls.airportUrl.touched && form.controls.airportUrl.invalid) {
+				<p class="field-error">请输入完整的 HTTP 或 HTTPS 订阅地址。</p>
+				}
+			</section>
+		</div>
+		<footer class="modal-actions">
+			<button class="clear-button" type="button" (click)="clearSavedSettings()">清除全部已保存数据</button
+			><button class="download-button" type="submit">完成</button>
+		</footer>
+	</form>
+</div>
+} @if (activeDialog() === "residential" && editingResidential; as residential) {
+<div class="modal-backdrop" role="presentation" (click)="closeDialog()">
+	<form
+		class="modal compact-modal residential-modal"
+		[formGroup]="residential"
+		(ngSubmit)="closeDialog()"
+		novalidate
+		role="dialog"
+		aria-modal="true"
+		aria-labelledby="residential-heading"
+		(click)="$event.stopPropagation()">
+		<header class="modal-heading">
+			<div>
+				<span class="step">节点</span>
+				<h2 id="residential-heading">编辑住宅节点 {{ (editingResidentialIndex() ?? 0) + 1 }}</h2>
+			</div>
+			<button class="close-button" type="button" (click)="closeDialog()" aria-label="关闭节点编辑窗口">×</button>
+		</header>
+		<div class="modal-body">
+			<section class="section-block">
+				<div class="proxy-link-field">
+					<label for="proxy-link">代理链接</label>
+					<div class="proxy-link-input">
 						<input
-							[id]="'name-' + index"
+							#proxyLink
+							id="proxy-link"
+							type="text"
+							placeholder="socks5://username:password@ip:port#name"
+							spellcheck="false"
+							autocomplete="off" />
+						<button
+							class="parse-link-button"
+							type="button"
+							(click)="importResidentialProxyLink(proxyLink.value)">
+							填入信息
+						</button>
+					</div>
+					<p class="field-hint">支持 socks5:// 或 socks://用户名:密码@服务器:端口#名称。</p>
+					@if (proxyLinkError()) {
+					<p class="field-error">{{ proxyLinkError() }}</p>
+					}
+				</div>
+				<div class="residential-card">
+					<div class="field field-wide">
+						<label for="name">节点名称</label
+						><input
+							id="name"
 							type="text"
 							formControlName="name"
 							placeholder="例如 US-IP"
-							autocomplete="off" />
-						@if (residential.controls.name.touched && residential.controls.name.invalid) {
+							autocomplete="off" />@if (residential.controls.name.touched &&
+						residential.controls.name.invalid) {
 						<p class="field-error">名称不能为空、前后不能有空格，且不能与 Mihomo 策略名称冲突。</p>
 						}
 					</div>
-
 					<div class="field server-field">
-						<label [for]="'server-' + index">服务器</label>
-						<input
-							[id]="'server-' + index"
+						<label for="server">服务器</label
+						><input
+							id="server"
 							type="text"
 							formControlName="server"
 							placeholder="proxy.example.com"
 							spellcheck="false"
-							autocomplete="off" />
-						@if (residential.controls.server.touched && residential.controls.server.invalid) {
+							autocomplete="off" />@if (residential.controls.server.touched &&
+						residential.controls.server.invalid) {
 						<p class="field-error">请输入服务器地址。</p>
 						}
 					</div>
-
 					<div class="field port-field">
-						<label [for]="'port-' + index">端口</label>
-						<input
-							[id]="'port-' + index"
+						<label for="port">端口</label
+						><input
+							id="port"
 							type="number"
 							formControlName="port"
 							placeholder="1080"
 							min="1"
 							max="65535"
-							inputmode="numeric" />
-						@if (residential.controls.port.touched && residential.controls.port.invalid) {
+							inputmode="numeric" />@if (residential.controls.port.touched &&
+						residential.controls.port.invalid) {
 						<p class="field-error">端口必须是 1–65535 的整数。</p>
 						}
 					</div>
-
 					<div class="field">
-						<label [for]="'username-' + index">用户名</label>
-						<input [id]="'username-' + index" type="text" formControlName="username" autocomplete="off" />
-						@if (residential.controls.username.touched && residential.controls.username.invalid) {
+						<label for="username">用户名</label
+						><input id="username" type="text" formControlName="username" autocomplete="off" />@if
+						(residential.controls.username.touched && residential.controls.username.invalid) {
 						<p class="field-error">请输入用户名。</p>
 						}
 					</div>
-
 					<div class="field">
-						<label [for]="'password-' + index">密码</label>
-						<input
-							[id]="'password-' + index"
+						<label for="password">密码</label
+						><input
+							id="password"
 							type="password"
 							formControlName="password"
-							autocomplete="new-password" />
-						@if (residential.controls.password.touched && residential.controls.password.invalid) {
+							autocomplete="new-password" />@if (residential.controls.password.touched &&
+						residential.controls.password.invalid) {
 						<p class="field-error">请输入密码。</p>
 						}
 					</div>
-				</fieldset>
+				</div>
+				@if (residentials.touched && residentials.hasError("duplicateNames")) {
+				<p class="form-error">每个住宅节点必须使用不同的名称。</p>
 				}
-			</div>
-			@if (residentials.touched && residentials.hasError("duplicateNames")) {
-			<p class="form-error">每个住宅节点必须使用不同的名称。</p>
-			}
-		</section>
-
-		<footer class="action-bar">
-			<div>
-				<strong>准备生成</strong>
-				<span>{{ residentials.length }} 个住宅节点 · 住宅流量经机场节点链式转发</span>
-			</div>
-			<button class="download-button" type="submit">生成并下载 YAML <span aria-hidden="true">↓</span></button>
+			</section>
+		</div>
+		<footer class="modal-actions">
+			<button class="clear-button" type="button" (click)="removeResidential(editingResidentialIndex() ?? 0)">
+				删除节点</button
+			><button class="download-button" type="submit">完成</button>
 		</footer>
-
-		@if (generationError()) {
-		<p class="status-message error-status" role="alert">{{ generationError() }}</p>
-		} @if (downloadComplete()) {
-		<p class="status-message success-status" role="status">配置已生成。请妥善保管下载文件，其中包含私有凭据。</p>
-		}
 	</form>
-
-	<footer class="page-footer">
-		<span>CLASH CONFIG / BROWSER EDITION</span>
-		<span>凭据只存在于当前页面与下载文件中</span>
-	</footer>
-</main>
+</div>
+}

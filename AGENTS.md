@@ -31,7 +31,7 @@
 
 - `src/config.ts` 保存公开、类型化的 Mihomo 配置和所有内联路由规则，包括当前的住宅代理链路；私有值只能通过 `ProxiesConfig` 参数注入。
 - `src/mihomo-types.ts` 保存本项目实际使用的 Mihomo 原生配置子集；`src/config-types.ts` 保存项目自定义的代理输入、代理组和规则配置类型。
-- Angular 表单负责收集私有输入；共享校验和 YAML 序列化必须保持纯函数，网页只在内存中生成并通过浏览器下载，不持久化或上传凭据。
+- Angular 表单负责收集私有输入；共享校验和 YAML 序列化必须保持纯函数。网页使用版本化的同源 Local Storage 自动保存和恢复凭据，只在浏览器内生成并下载，不上传凭据；必须提供清除持久化副本的入口并明确提示明文存储风险。
 - `test/` 使用 Node.js test runner 和 `tsx` 验证固定配置结构与路由不变量；Angular 组件测试使用项目配置的 Vitest，并只使用合成值。
 - `README.md` 负责面向用户的安装、网页使用、构建和导入说明；AGENTS.md 只记录 Agent 不易可靠推断的约束与流程。
 

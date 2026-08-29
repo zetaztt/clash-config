@@ -2,46 +2,164 @@ import { TestBed } from "@angular/core/testing";
 
 import { App } from "./app";
 
+function fillInput(element: HTMLElement, selector: string, value: string): void {
+	const input = element.querySelector<HTMLInputElement>(selector);
+	if (!input) {
+		throw new Error(`Missing test input: ${selector}`);
+	}
+	input.value = value;
+	input.dispatchEvent(new Event("input"));
+}
+
 describe("App", () => {
 	beforeEach(async () => {
+		localStorage.clear();
 		await TestBed.configureTestingModule({ imports: [App] }).compileComponents();
 	});
 
 	afterEach(() => {
+		localStorage.clear();
 		vi.restoreAllMocks();
 	});
 
-	it("renders one editable residential node initially", async () => {
+	it("shows basic information and separate edit entries on the home page", async () => {
 		const fixture = TestBed.createComponent(App);
 		await fixture.whenStable();
 		const element = fixture.nativeElement as HTMLElement;
 
+		expect(element.querySelector<HTMLInputElement>("#airport-url")).toBeNull();
+		expect(element.querySelectorAll(".summary-edit-button")).toHaveLength(2);
+		expect(element.textContent).toContain("尚未填写");
+		expect(element.textContent).toContain("0 个节点");
+	});
+
+	it("opens an individual subscription editor", async () => {
+		const fixture = TestBed.createComponent(App);
+		await fixture.whenStable();
+		const element = fixture.nativeElement as HTMLElement;
+
+		element.querySelector<HTMLButtonElement>(".overview-section .summary-edit-button")?.click();
+		await fixture.whenStable();
+
+		expect(element.querySelector(".subscription-modal")).not.toBeNull();
+		expect(element.querySelector(".residential-modal")).toBeNull();
+	});
+
+	it("opens an individual node editor and adds a node directly into its editor", async () => {
+		const fixture = TestBed.createComponent(App);
+		await fixture.whenStable();
+		const element = fixture.nativeElement as HTMLElement;
+
+		const buttons = element.querySelectorAll<HTMLButtonElement>(".summary-edit-button");
+		buttons[1]?.click();
+		await fixture.whenStable();
+
+		expect(element.querySelector(".residential-modal")).not.toBeNull();
 		expect(element.querySelectorAll(".residential-card")).toHaveLength(1);
-		expect(element.textContent).toContain("把代理链路");
+		element.querySelector<HTMLButtonElement>(".close-button")?.click();
+		await fixture.whenStable();
+		const updatedButtons = element.querySelectorAll<HTMLButtonElement>(".summary-edit-button");
+		updatedButtons[1]?.click();
+		await fixture.whenStable();
+
+		expect(element.querySelector(".residential-modal")).not.toBeNull();
+		expect(element.textContent).toContain("编辑住宅节点 2");
+		expect(element.textContent).toContain("2 个节点");
 	});
 
-	it("adds another residential node without persisting credentials", async () => {
+	it("fills a residential node from a Clash-style SOCKS5 link", async () => {
 		const fixture = TestBed.createComponent(App);
 		await fixture.whenStable();
 		const element = fixture.nativeElement as HTMLElement;
-		const addButton = element.querySelector<HTMLButtonElement>(".add-button");
-
-		addButton?.click();
+		element.querySelectorAll<HTMLButtonElement>(".summary-edit-button")[1]?.click();
 		await fixture.whenStable();
 
-		expect(element.querySelectorAll(".residential-card")).toHaveLength(2);
-		expect(element.textContent).toContain("2 个住宅节点");
+		fillInput(
+			element,
+			"#proxy-link",
+			"socks5://synthetic-user:synthetic-password@residential.example.com:12345#Synthetic-IP",
+		);
+		element.querySelector<HTMLButtonElement>(".parse-link-button")?.click();
+		await fixture.whenStable();
+
+		expect(element.querySelector<HTMLInputElement>("#name")?.value).toBe("Synthetic-IP");
+		expect(element.querySelector<HTMLInputElement>("#server")?.value).toBe("residential.example.com");
+		expect(element.querySelector<HTMLInputElement>("#port")?.value).toBe("12345");
+		expect(element.querySelector<HTMLInputElement>("#username")?.value).toBe("synthetic-user");
+		expect(element.querySelector<HTMLInputElement>("#password")?.value).toBe("synthetic-password");
 	});
 
-	it("shows validation guidance instead of generating an empty config", async () => {
+	it("shows a safe error for an unsupported proxy link type", async () => {
+		const fixture = TestBed.createComponent(App);
+		await fixture.whenStable();
+		const element = fixture.nativeElement as HTMLElement;
+		element.querySelectorAll<HTMLButtonElement>(".summary-edit-button")[1]?.click();
+		await fixture.whenStable();
+
+		fillInput(
+			element,
+			"#proxy-link",
+			"http://synthetic-user:synthetic-password@residential.example.com:12345#Synthetic-IP",
+		);
+		element.querySelector<HTMLButtonElement>(".parse-link-button")?.click();
+		await fixture.whenStable();
+
+		expect(element.textContent).toContain("当前仅支持 SOCKS5 链接");
+	});
+
+	it("automatically saves and restores synthetic settings edited separately", async () => {
+		const firstFixture = TestBed.createComponent(App);
+		await firstFixture.whenStable();
+		const firstElement = firstFixture.nativeElement as HTMLElement;
+		firstElement.querySelector<HTMLButtonElement>(".overview-section .summary-edit-button")?.click();
+		await firstFixture.whenStable();
+		fillInput(firstElement, "#airport-url", "https://example.com/subscription?token=synthetic");
+		firstElement.querySelector<HTMLButtonElement>(".close-button")?.click();
+		await firstFixture.whenStable();
+		firstElement.querySelectorAll<HTMLButtonElement>(".summary-edit-button")[1]?.click();
+		await firstFixture.whenStable();
+		fillInput(firstElement, "#name", "Synthetic-IP");
+		fillInput(firstElement, "#server", "residential.example.com");
+		fillInput(firstElement, "#port", "12345");
+		fillInput(firstElement, "#username", "synthetic-user");
+		fillInput(firstElement, "#password", "synthetic-password");
+		firstFixture.destroy();
+
+		const secondFixture = TestBed.createComponent(App);
+		await secondFixture.whenStable();
+		const secondElement = secondFixture.nativeElement as HTMLElement;
+		expect(secondElement.textContent).toContain("example.com");
+		expect(secondElement.textContent).toContain("Synthetic-IP");
+		secondElement.querySelector<HTMLButtonElement>(".node-summary .summary-edit-button")?.click();
+		await secondFixture.whenStable();
+
+		expect(secondElement.querySelector<HTMLInputElement>("#password")?.value).toBe("synthetic-password");
+	});
+
+	it("clears the current form and saved copy from the subscription editor", async () => {
+		const fixture = TestBed.createComponent(App);
+		await fixture.whenStable();
+		const element = fixture.nativeElement as HTMLElement;
+		element.querySelector<HTMLButtonElement>(".overview-section .summary-edit-button")?.click();
+		await fixture.whenStable();
+		fillInput(element, "#airport-url", "https://example.com/subscription?token=synthetic");
+		element.querySelector<HTMLButtonElement>(".clear-button")?.click();
+		await fixture.whenStable();
+
+		expect(localStorage.getItem("clash-config:proxy-settings:v1")).toBeNull();
+		expect(element.textContent).toContain("尚未填写");
+		expect(element.textContent).toContain("0 个节点");
+	});
+
+	it("opens the invalid subscription editor when downloading an incomplete config", async () => {
 		const fixture = TestBed.createComponent(App);
 		await fixture.whenStable();
 		const element = fixture.nativeElement as HTMLElement;
 
-		element.querySelector<HTMLButtonElement>(".download-button")?.click();
+		element.querySelector<HTMLButtonElement>(".action-bar .download-button")?.click();
 		await fixture.whenStable();
 
-		expect(element.querySelectorAll(".field-error").length).toBeGreaterThan(0);
+		expect(element.querySelector(".subscription-modal")).not.toBeNull();
 		expect(element.textContent).toContain("请输入完整的 HTTP 或 HTTPS 订阅地址");
 	});
 
@@ -49,25 +167,25 @@ describe("App", () => {
 		const fixture = TestBed.createComponent(App);
 		await fixture.whenStable();
 		const element = fixture.nativeElement as HTMLElement;
-		const fill = (selector: string, value: string): void => {
-			const input = element.querySelector<HTMLInputElement>(selector);
-			if (!input) {
-				throw new Error(`Missing test input: ${selector}`);
-			}
-			input.value = value;
-			input.dispatchEvent(new Event("input"));
-		};
 		const createObjectUrl = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:synthetic-config");
 		const revokeObjectUrl = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
 		const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
 
-		fill("#airport-url", "https://example.com/subscription?token=replace-me");
-		fill("#name-0", "Synthetic-IP");
-		fill("#server-0", "residential.example.com");
-		fill("#port-0", "12345");
-		fill("#username-0", "replace-me");
-		fill("#password-0", "replace-me");
-		element.querySelector<HTMLButtonElement>(".download-button")?.click();
+		element.querySelector<HTMLButtonElement>(".overview-section .summary-edit-button")?.click();
+		await fixture.whenStable();
+		fillInput(element, "#airport-url", "https://example.com/subscription?token=replace-me");
+		element.querySelector<HTMLButtonElement>(".close-button")?.click();
+		await fixture.whenStable();
+		element.querySelectorAll<HTMLButtonElement>(".summary-edit-button")[1]?.click();
+		await fixture.whenStable();
+		fillInput(element, "#name", "Synthetic-IP");
+		fillInput(element, "#server", "residential.example.com");
+		fillInput(element, "#port", "12345");
+		fillInput(element, "#username", "replace-me");
+		fillInput(element, "#password", "replace-me");
+		element.querySelector<HTMLButtonElement>(".close-button")?.click();
+		await fixture.whenStable();
+		element.querySelector<HTMLButtonElement>(".action-bar .download-button")?.click();
 		await fixture.whenStable();
 
 		expect(createObjectUrl).toHaveBeenCalledOnce();
@@ -75,5 +193,34 @@ describe("App", () => {
 		expect(anchorClick).toHaveBeenCalledOnce();
 		expect(revokeObjectUrl).toHaveBeenCalledWith("blob:synthetic-config");
 		expect(element.textContent).toContain("配置已生成");
+	});
+
+	it("copies a validated YAML config to the clipboard", async () => {
+		const fixture = TestBed.createComponent(App);
+		await fixture.whenStable();
+		const element = fixture.nativeElement as HTMLElement;
+		const writeText = vi.fn().mockResolvedValue(undefined);
+		Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+
+		element.querySelector<HTMLButtonElement>(".overview-section .summary-edit-button")?.click();
+		await fixture.whenStable();
+		fillInput(element, "#airport-url", "https://example.com/subscription?token=replace-me");
+		element.querySelector<HTMLButtonElement>(".close-button")?.click();
+		await fixture.whenStable();
+		element.querySelectorAll<HTMLButtonElement>(".summary-edit-button")[1]?.click();
+		await fixture.whenStable();
+		fillInput(element, "#name", "Synthetic-IP");
+		fillInput(element, "#server", "residential.example.com");
+		fillInput(element, "#port", "12345");
+		fillInput(element, "#username", "replace-me");
+		fillInput(element, "#password", "replace-me");
+		element.querySelector<HTMLButtonElement>(".close-button")?.click();
+		await fixture.whenStable();
+		element.querySelector<HTMLButtonElement>(".copy-button")?.click();
+		await fixture.whenStable();
+
+		expect(writeText).toHaveBeenCalledOnce();
+		expect(writeText.mock.calls[0]?.[0]).toEqual(expect.any(String));
+		expect(element.textContent).toContain("配置已复制到剪切板");
 	});
 });

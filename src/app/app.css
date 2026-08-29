@@ -90,10 +90,87 @@ h1 span {
 	font-size: 0.6rem;
 }
 
-.config-card {
+.config-card,
+.modal {
 	border: 1px solid var(--ink);
 	background: var(--paper);
 	box-shadow: 12px 12px 0 var(--shadow);
+}
+
+.overview-section {
+	display: grid;
+	grid-template-columns: 54px 1fr;
+	gap: 16px;
+	padding: 32px 36px;
+	border-bottom: 1px solid var(--line-strong);
+}
+
+.overview-section h2,
+.modal-heading h2 {
+	margin: 0;
+	font-size: 1.45rem;
+	letter-spacing: -0.03em;
+}
+
+.overview-section p {
+	margin: 8px 0 0;
+	color: var(--ink-muted);
+	font: 0.88rem var(--font-mono);
+}
+
+.overview-heading {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 16px;
+}
+
+.node-summary {
+	display: grid;
+	gap: 9px;
+	margin: 18px 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.node-summary li {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 16px;
+	padding: 10px 12px;
+	border-left: 2px solid var(--accent);
+	background: rgb(255 255 255 / 55%);
+}
+
+.node-summary li > div {
+	display: grid;
+	gap: 5px;
+}
+
+.node-summary strong {
+	font-size: 0.86rem;
+}
+
+.node-summary span {
+	color: var(--ink-muted);
+	font: 0.76rem var(--font-mono);
+}
+
+.summary-edit-button {
+	flex: none;
+	padding: 7px 11px;
+	border: 1px solid var(--line-strong);
+	background: transparent;
+	color: var(--ink);
+	font: 0.75rem var(--font-mono);
+	cursor: pointer;
+}
+
+.summary-edit-button:hover {
+	border-color: var(--ink);
+	background: var(--ink);
+	color: white;
 }
 
 .section-block {
@@ -115,7 +192,7 @@ h1 span {
 	gap: 15px;
 }
 
-.section-heading h2 {
+.section-heading h3 {
 	margin: 0;
 	font-size: 1.45rem;
 	letter-spacing: -0.03em;
@@ -178,9 +255,30 @@ input.ng-touched.ng-invalid {
 	line-height: 1.45;
 }
 
+.field-hint {
+	margin: 7px 0 0;
+	color: var(--ink-muted);
+	font-size: 0.76rem;
+	line-height: 1.45;
+}
+
+.proxy-link-field {
+	margin-bottom: 24px;
+}
+
+.proxy-link-input {
+	display: flex;
+	gap: 10px;
+}
+
 .add-button,
 .remove-button,
-.download-button {
+.clear-button,
+.parse-link-button,
+.copy-button,
+.download-button,
+.edit-button,
+.close-button {
 	border: 0;
 	font: inherit;
 	cursor: pointer;
@@ -197,6 +295,21 @@ input.ng-touched.ng-invalid {
 .add-button:hover {
 	background: var(--ink);
 	color: white;
+}
+
+.parse-link-button {
+	flex: none;
+	padding: 0 14px;
+	border: 1px solid var(--ink);
+	background: var(--ink);
+	color: white;
+	font-size: 0.8rem;
+	font-weight: 650;
+}
+
+.parse-link-button:hover {
+	border-color: var(--accent);
+	background: var(--accent);
 }
 
 .residential-list {
@@ -272,6 +385,44 @@ input.ng-touched.ng-invalid {
 	font-size: 0.78rem;
 }
 
+.action-buttons {
+	display: flex;
+	align-items: center;
+	gap: 14px;
+}
+
+.edit-button {
+	padding: 0 18px;
+	min-height: 44px;
+	border: 1px solid #d4d4cc;
+	background: transparent;
+	color: white;
+	font-size: 0.82rem;
+	font-weight: 650;
+}
+
+.edit-button {
+	border-color: var(--accent);
+	background: var(--accent);
+}
+
+.edit-button:hover {
+	background: var(--accent-dark);
+}
+
+.clear-button {
+	padding: 8px 0;
+	background: transparent;
+	color: #d4d4cc;
+	font-size: 0.78rem;
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+
+.clear-button:hover {
+	color: white;
+}
+
 .download-button {
 	display: inline-flex;
 	align-items: center;
@@ -281,6 +432,21 @@ input.ng-touched.ng-invalid {
 	background: var(--accent);
 	color: white;
 	font-weight: 700;
+}
+
+.copy-button {
+	min-height: 52px;
+	padding: 0 18px;
+	border: 1px solid #d4d4cc;
+	background: transparent;
+	color: white;
+	font-size: 0.82rem;
+	font-weight: 650;
+}
+
+.copy-button:hover {
+	background: white;
+	color: var(--ink);
 }
 
 .download-button:hover {
@@ -293,9 +459,9 @@ input.ng-touched.ng-invalid {
 }
 
 .status-message {
-	margin: 0;
+	margin: 18px 0 0;
 	padding: 13px 36px;
-	border-top: 1px solid var(--line-strong);
+	border: 1px solid var(--line-strong);
 	font-size: 0.82rem;
 }
 
@@ -318,6 +484,81 @@ input.ng-touched.ng-invalid {
 	font-size: 0.64rem;
 }
 
+.modal-backdrop {
+	position: fixed;
+	z-index: 10;
+	display: grid;
+	place-items: center;
+	inset: 0;
+	padding: 24px;
+	background: rgb(23 23 20 / 62%);
+	overflow-y: auto;
+}
+
+.modal {
+	width: min(860px, 100%);
+	max-height: min(860px, calc(100vh - 48px));
+	box-shadow: 16px 16px 0 rgb(0 0 0 / 25%);
+	overflow: auto;
+}
+
+.editor-modal {
+	display: flex;
+	flex-direction: column;
+}
+
+.compact-modal {
+	max-width: 680px;
+}
+
+.modal-heading {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 16px;
+	padding: 28px 30px 24px;
+	border-bottom: 1px solid var(--line-strong);
+}
+
+.modal-heading .step {
+	display: block;
+	margin-bottom: 8px;
+}
+
+.close-button {
+	width: 36px;
+	height: 36px;
+	border: 1px solid var(--line-strong);
+	background: transparent;
+	color: var(--ink);
+	font-size: 1.5rem;
+	line-height: 1;
+}
+
+.close-button:hover {
+	border-color: var(--ink);
+	background: var(--ink);
+	color: white;
+}
+
+.modal-body {
+	overflow: auto;
+}
+
+.modal-body .section-block:last-child {
+	border-bottom: 0;
+}
+
+.modal-actions {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 24px;
+	padding: 22px 30px;
+	border-top: 1px solid var(--line-strong);
+	background: var(--ink);
+}
+
 @media (max-width: 700px) {
 	.page-shell {
 		width: min(100% - 24px, 1120px);
@@ -332,11 +573,27 @@ input.ng-touched.ng-invalid {
 		padding: 26px 18px;
 	}
 
+	.overview-section {
+		grid-template-columns: 1fr;
+		gap: 10px;
+		padding: 26px 18px;
+	}
+
+	.overview-heading {
+		align-items: stretch;
+		flex-direction: column;
+	}
+
 	.section-heading,
 	.action-bar,
 	.page-footer {
 		align-items: stretch;
 		flex-direction: column;
+	}
+
+	.action-buttons {
+		align-items: stretch;
+		flex-direction: column-reverse;
 	}
 
 	.residential-card {
@@ -351,5 +608,38 @@ input.ng-touched.ng-invalid {
 
 	.download-button {
 		justify-content: space-between;
+	}
+
+	.proxy-link-input {
+		align-items: stretch;
+		flex-direction: column;
+	}
+
+	.parse-link-button {
+		min-height: 42px;
+	}
+
+	.node-summary li,
+	.modal-actions {
+		align-items: stretch;
+		flex-direction: column;
+	}
+
+	.summary-edit-button {
+		align-self: flex-start;
+	}
+
+	.modal-backdrop {
+		padding: 12px;
+	}
+
+	.modal {
+		max-height: calc(100vh - 24px);
+	}
+
+	.modal-heading,
+	.modal-actions {
+		padding-right: 18px;
+		padding-left: 18px;
 	}
 }

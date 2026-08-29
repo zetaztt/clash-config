@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, signal } from "@angular/core";
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from "@angular/core";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import {
 	AbstractControl,
 	FormArray,
@@ -19,6 +20,76 @@ type ResidentialForm = FormGroup<{
 	username: FormControl<string>;
 	password: FormControl<string>;
 }>;
+
+interface ResidentialFormValue {
+	name: string;
+	server: string;
+	port: number | null;
+	username: string;
+	password: string;
+}
+
+interface StoredProxySettings {
+	version: 1;
+	airportUrl: string;
+	residentials: ResidentialFormValue[];
+}
+
+interface ProxySummary {
+	airport: string;
+	residentials: Array<Pick<ResidentialFormValue, "name" | "server">>;
+}
+
+// 版本化键名让未来的表单结构可以安全迁移，而不会误读已持久化的凭据。
+const proxySettingsStorageKey = "clash-config:proxy-settings:v1";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseStoredProxySettings(serialized: string): StoredProxySettings | null {
+	try {
+		const value: unknown = JSON.parse(serialized);
+		if (!isRecord(value) || value["version"] !== 1 || typeof value["airportUrl"] !== "string") {
+			return null;
+		}
+
+		const residentials = value["residentials"];
+		if (!Array.isArray(residentials) || residentials.length > 100) {
+			return null;
+		}
+
+		const parsedResidentials = residentials.map((residential): ResidentialFormValue | null => {
+			if (!isRecord(residential)) {
+				return null;
+			}
+
+			const { name, server, port, username, password } = residential;
+			if (
+				typeof name !== "string"
+				|| typeof server !== "string"
+				|| (port !== null && (typeof port !== "number" || !Number.isFinite(port)))
+				|| typeof username !== "string"
+				|| typeof password !== "string"
+			) {
+				return null;
+			}
+
+			return { name, server, port, username, password };
+		});
+		if (parsedResidentials.some((residential) => residential === null)) {
+			return null;
+		}
+
+		return {
+			version: 1,
+			airportUrl: value["airportUrl"],
+			residentials: parsedResidentials as ResidentialFormValue[],
+		};
+	} catch {
+		return null;
+	}
+}
 
 function httpUrl(control: AbstractControl<string>): ValidationErrors | null {
 	if (control.value !== control.value.trim()) {
@@ -48,19 +119,92 @@ function uniqueNames(control: AbstractControl): ValidationErrors | null {
 	return new Set(names).size === names.length ? null : { duplicateNames: true };
 }
 
-function createResidentialForm(): ResidentialForm {
+function atLeastOneResidential(control: AbstractControl): ValidationErrors | null {
+	return Array.isArray(control.value) && control.value.length > 0 ? null : { noResidentials: true };
+}
+
+function createResidentialForm(value?: ResidentialFormValue): ResidentialForm {
 	return new FormGroup({
-		name: new FormControl("", { nonNullable: true, validators: [Validators.required, proxyName] }),
-		server: new FormControl("", { nonNullable: true, validators: Validators.required }),
-		port: new FormControl<number | null>(null, [
+		name: new FormControl(value?.name ?? "", {
+			nonNullable: true,
+			validators: [Validators.required, proxyName],
+		}),
+		server: new FormControl(value?.server ?? "", {
+			nonNullable: true,
+			validators: Validators.required,
+		}),
+		port: new FormControl<number | null>(value?.port ?? null, [
 			Validators.required,
 			Validators.min(1),
 			Validators.max(65_535),
 			Validators.pattern(/^\d+$/),
 		]),
-		username: new FormControl("", { nonNullable: true, validators: Validators.required }),
-		password: new FormControl("", { nonNullable: true, validators: Validators.required }),
+		username: new FormControl(value?.username ?? "", {
+			nonNullable: true,
+			validators: Validators.required,
+		}),
+		password: new FormControl(value?.password ?? "", {
+			nonNullable: true,
+			validators: Validators.required,
+		}),
 	});
+}
+
+/** 将 Clash 风格的 SOCKS5 链接转换为当前住宅节点所需的字段，不接受本配置无法生成的代理类型。 */
+function parseResidentialProxyLink(value: string): ResidentialFormValue {
+	let url: URL;
+	try {
+		url = new URL(value.trim());
+	} catch {
+		throw new Error("链接格式无效，请使用 socks5://用户名:密码@服务器:端口#名称。");
+	}
+
+	if (!["socks5:", "socks:"].includes(url.protocol)) {
+		throw new Error("当前仅支持 SOCKS5 链接。");
+	}
+	if (url.hostname === "" || url.port === "" || url.username === "" || url.password === "" || url.hash === "") {
+		throw new Error("链接必须包含用户名、密码、服务器、端口和名称。");
+	}
+	if (!["", "/"].includes(url.pathname) || url.search !== "") {
+		throw new Error("链接不能包含额外路径或查询参数。");
+	}
+
+	const port = Number(url.port);
+	if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+		throw new Error("链接端口必须是 1–65535 的整数。");
+	}
+
+	try {
+		return {
+			name: decodeURIComponent(url.hash.slice(1)),
+			server: url.hostname,
+			port,
+			username: decodeURIComponent(url.username),
+			password: decodeURIComponent(url.password),
+		};
+	} catch {
+		throw new Error("链接中的编码无效。");
+	}
+}
+
+/** 摘要避免展示订阅令牌、用户名和密码，只保留主页所需的基本信息。 */
+function createProxySummary(value: { airportUrl: string; residentials: ResidentialFormValue[] }): ProxySummary {
+	let airport = "尚未填写";
+	try {
+		const url = new URL(value.airportUrl);
+		if (["http:", "https:"].includes(url.protocol)) {
+			airport = url.host;
+		}
+	} catch {
+		if (value.airportUrl !== "") {
+			airport = "地址待校验";
+		}
+	}
+
+	return {
+		airport,
+		residentials: value.residentials.map(({ name, server }) => ({ name, server })),
+	};
 }
 
 @Component({
@@ -71,15 +215,33 @@ function createResidentialForm(): ResidentialForm {
 	changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class App {
+	private readonly destroyRef = inject(DestroyRef);
+	private suppressAutoSave = false;
 	protected readonly form = new FormGroup({
 		airportUrl: new FormControl("", {
 			nonNullable: true,
 			validators: [Validators.required, httpUrl],
 		}),
-		residentials: new FormArray<ResidentialForm>([createResidentialForm()], uniqueNames),
+		residentials: new FormArray<ResidentialForm>([], [uniqueNames, atLeastOneResidential]),
 	});
 	protected readonly generationError = signal<string | null>(null);
 	protected readonly downloadComplete = signal(false);
+	protected readonly copyComplete = signal(false);
+	protected readonly proxyLinkError = signal<string | null>(null);
+	protected readonly autoSaveError = signal(false);
+	protected readonly activeDialog = signal<"subscription" | "residential" | null>(null);
+	protected readonly editingResidentialIndex = signal<number | null>(null);
+	protected readonly summary = signal<ProxySummary>(createProxySummary(this.form.getRawValue()));
+
+	constructor() {
+		this.restoreSavedSettings();
+		this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+			this.downloadComplete.set(false);
+			this.copyComplete.set(false);
+			this.updateSummary();
+			this.saveSettings();
+		});
+	}
 
 	protected get residentials(): FormArray<ResidentialForm> {
 		return this.form.controls.residentials;
@@ -88,22 +250,143 @@ export class App {
 	protected addResidential(): void {
 		this.residentials.push(createResidentialForm());
 		this.downloadComplete.set(false);
+		this.copyComplete.set(false);
+		this.openResidentialEditor(this.residentials.length - 1);
 	}
 
 	protected removeResidential(index: number): void {
-		if (this.residentials.length > 1) {
+		if (this.residentials.length > 0) {
 			this.residentials.removeAt(index);
 			this.downloadComplete.set(false);
+			this.copyComplete.set(false);
+			this.closeDialog();
 		}
 	}
 
-	/** 在浏览器内生成并下载配置；表单中的凭据不会写入本地存储或发送到网络。 */
-	protected downloadConfig(): void {
+	protected openSubscriptionEditor(): void {
+		this.editingResidentialIndex.set(null);
+		this.activeDialog.set("subscription");
+	}
+
+	protected openResidentialEditor(index: number): void {
+		if (index < 0 || index >= this.residentials.length) {
+			return;
+		}
+		this.editingResidentialIndex.set(index);
+		this.proxyLinkError.set(null);
+		this.activeDialog.set("residential");
+	}
+
+	protected closeDialog(): void {
+		this.activeDialog.set(null);
+		this.editingResidentialIndex.set(null);
+		this.proxyLinkError.set(null);
+	}
+
+	protected get editingResidential(): ResidentialForm | null {
+		const index = this.editingResidentialIndex();
+		return index === null ? null : (this.residentials.at(index) ?? null);
+	}
+
+	/** 链接只用于当前弹窗填充表单，不写入浏览器持久化存储。 */
+	protected importResidentialProxyLink(link: string): void {
+		const residential = this.editingResidential;
+		if (residential === null) {
+			return;
+		}
+
+		try {
+			residential.patchValue(parseResidentialProxyLink(link));
+			this.proxyLinkError.set(null);
+		} catch (error) {
+			this.proxyLinkError.set(error instanceof Error ? error.message : "链接解析失败，请检查格式。");
+		}
+	}
+
+	/** 同时清空当前表单和持久化副本，避免下一次值变更立即重新写入旧凭据。 */
+	protected clearSavedSettings(): void {
+		this.suppressAutoSave = true;
+		this.form.controls.airportUrl.setValue("", { emitEvent: false });
+		this.residentials.clear({ emitEvent: false });
+		this.form.markAsUntouched();
+		this.suppressAutoSave = false;
 		this.generationError.set(null);
 		this.downloadComplete.set(false);
+		this.copyComplete.set(false);
+		this.autoSaveError.set(false);
+		this.updateSummary();
+		try {
+			localStorage.removeItem(proxySettingsStorageKey);
+		} catch {
+			this.autoSaveError.set(true);
+		}
+	}
+
+	private restoreSavedSettings(): void {
+		try {
+			const serialized = localStorage.getItem(proxySettingsStorageKey);
+			if (serialized === null) {
+				return;
+			}
+
+			const settings = parseStoredProxySettings(serialized);
+			if (settings === null) {
+				localStorage.removeItem(proxySettingsStorageKey);
+				return;
+			}
+
+			this.suppressAutoSave = true;
+			this.form.controls.airportUrl.setValue(settings.airportUrl, { emitEvent: false });
+			this.residentials.clear({ emitEvent: false });
+			for (const residential of settings.residentials) {
+				this.residentials.push(createResidentialForm(residential), { emitEvent: false });
+			}
+			this.suppressAutoSave = false;
+			this.updateSummary();
+		} catch {
+			this.suppressAutoSave = false;
+			this.autoSaveError.set(true);
+		}
+	}
+
+	/** 凭据按用户要求明文保存在当前站点的浏览器存储中，绝不进入日志或错误消息。 */
+	private saveSettings(): void {
+		if (this.suppressAutoSave) {
+			return;
+		}
+
+		const settings: StoredProxySettings = {
+			version: 1,
+			...this.form.getRawValue(),
+		};
+		try {
+			localStorage.setItem(proxySettingsStorageKey, JSON.stringify(settings));
+			this.autoSaveError.set(false);
+		} catch {
+			this.autoSaveError.set(true);
+		}
+	}
+
+	private updateSummary(): void {
+		this.summary.set(createProxySummary(this.form.getRawValue()));
+	}
+
+	/** 校验并生成仅在当前浏览器内使用的 YAML，失败时定位到需要修正的独立编辑窗口。 */
+	private createOutputYaml(): string | null {
+		this.generationError.set(null);
+		this.downloadComplete.set(false);
+		this.copyComplete.set(false);
 		this.form.markAllAsTouched();
 		if (this.form.invalid) {
-			return;
+			if (this.form.controls.airportUrl.invalid) {
+				this.openSubscriptionEditor();
+			} else if (this.residentials.length === 0) {
+				this.addResidential();
+			} else {
+				const invalidIndex = this.residentials.controls.findIndex((residential) => residential.invalid);
+				this.openResidentialEditor(Math.max(invalidIndex, 0));
+			}
+			return null;
 		}
 
 		const value = this.form.getRawValue();
@@ -115,7 +398,21 @@ export class App {
 		);
 
 		try {
-			const yaml = createMihomoYaml({ airportUrl: value.airportUrl, residentials });
+			return createMihomoYaml({ airportUrl: value.airportUrl, residentials });
+		} catch (error) {
+			this.generationError.set(error instanceof Error ? error.message : "配置生成失败，请检查输入。");
+			return null;
+		}
+	}
+
+	/** 在浏览器内生成并下载配置；表单凭据不会发送到网络。 */
+	protected downloadConfig(): void {
+		const yaml = this.createOutputYaml();
+		if (yaml === null) {
+			return;
+		}
+
+		try {
 			const url = URL.createObjectURL(new Blob([yaml], { type: "application/yaml;charset=utf-8" }));
 			const anchor = document.createElement("a");
 			anchor.href = url;
@@ -125,8 +422,27 @@ export class App {
 			anchor.remove();
 			URL.revokeObjectURL(url);
 			this.downloadComplete.set(true);
+			this.closeDialog();
 		} catch (error) {
 			this.generationError.set(error instanceof Error ? error.message : "配置生成失败，请检查输入。");
+		}
+	}
+
+	/** 使用系统剪切板 API 复制完整 YAML；内容仍只在本机浏览器和系统剪切板内流转。 */
+	protected async copyConfig(): Promise<void> {
+		const yaml = this.createOutputYaml();
+		if (yaml === null) {
+			return;
+		}
+
+		try {
+			if (!("clipboard" in navigator) || navigator.clipboard === undefined) {
+				throw new Error("Clipboard API unavailable");
+			}
+			await navigator.clipboard.writeText(yaml);
+			this.copyComplete.set(true);
+		} catch {
+			this.generationError.set("无法复制到剪切板，请检查浏览器权限后重试。");
 		}
 	}
 }
