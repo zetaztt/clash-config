@@ -27,10 +27,10 @@ export enum MihomoProxyNodeGroup {
 
 /** 路由规则可以选择的用户可见策略组。 */
 export enum MihomoProxyPolicyGroup {
-	ProxyPolicy = "代理",
+	ProxyPolicy = "代理策略",
 	RiskPolicy = "风控策略",
-	AdPolicy = "广告拦截",
-	FinalPolicy = "最终代理",
+	AdPolicy = "广告策略",
+	FinalPolicy = "最终策略",
 }
 
 /** 按声明顺序构建的公开规则块；规则只能选择策略组或允许的内置策略，不能直接选择节点组。 */
