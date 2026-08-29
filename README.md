@@ -1,10 +1,11 @@
 # Clash 配置
 
-用于生成个人使用的 Clash Verge Rev / Mihomo 配置。住宅代理链路是当前支持的配置需求之一，后续可以继续按实际需要扩展其他配置。
+一个在浏览器本地生成个人 Clash Verge Rev / Mihomo 配置的 Angular 网页。住宅代理链路是当前支持的配置需求之一，后续可以继续按实际需要扩展其他配置。
 
 ## 环境要求
 
-- Node.js 24.3.0 或更高版本（包含 npm）
+- Node.js 24.15.0 或更高版本（包含 npm）
+- 支持 Blob 文件下载的现代浏览器
 - Clash Verge Rev 或其他兼容 Mihomo 配置的客户端
 
 ## 安装
@@ -15,63 +16,46 @@
 npm ci
 ```
 
-## 住宅代理设置
+## 启动网页
 
-在仓库的 `data` 目录中创建不会纳入版本控制的 `proxies.json`。该文件包含订阅地址和住宅节点凭据，只能保存在本地。`residentials` 的键会成为 Mihomo 住宅节点名，可以按需命名并添加多个节点：
+启动 Angular 开发服务器：
 
-```json
-{
-	"airportUrl": "https://example.com/subscription?token=replace-me",
-	"residentials": {
-		"JP-IP": {
-			"server": "jp-residential.example.com",
-			"port": 12345,
-			"username": "replace-me",
-			"password": "replace-me"
-		},
-		"US-IP": {
-			"server": "us-residential.example.com",
-			"port": 23456,
-			"username": "replace-me",
-			"password": "replace-me"
-		}
-	}
-}
+```console
+npm start
 ```
 
-住宅节点名不能与 `代理`、`风控策略`、`代理节点`、`住宅节点`、`广告拦截`、`最终代理`、`DIRECT`，以及
-`REJECT`、`REJECT-DROP`、`PASS`、`PASS-RULE`、`COMPATIBLE`、`GLOBAL` 等 Mihomo
-内置名称冲突。
+打开终端显示的本地地址（默认是 `http://localhost:4200`），在页面中填写：
+
+- `Airport URL`：HTTP 或 HTTPS 机场订阅地址；
+- 一个或多个住宅节点：节点名称、服务器、端口、用户名和密码。
+
+点击“生成并下载 YAML”后，浏览器会下载 `clash-config.yaml`。生成过程完全在浏览器内完成，不读取
+`proxies.json`，也不会把表单内容写入 Local Storage、Session Storage 或发送给服务器。刷新或关闭页面后，
+未下载的表单内容不会保留。
+
+住宅节点名不能与页面提示的代理组或 Mihomo 内置策略名称冲突，并且每个节点名必须唯一。
 
 所有住宅节点都会加入 `住宅节点`，并通过 `代理节点` 建立链式代理。一般业务代理规则使用
 `代理` 组，可在 `代理节点` 和 `住宅节点` 之间选择；ChatGPT、Claude 和 Cloudflare 验证等
 现有住宅风控规则使用 `风控策略`，默认选择 `住宅节点`，也可切换为 `代理`。最终兜底规则
 使用 `最终代理` 组，可在 `代理` 和 `DIRECT`（直连）之间选择。
 
-## 生成配置
+## 构建网页
 
-使用默认输入 `data/proxies.json` 生成 `dist/clash-config.yaml`：
-
-```console
-npm run build-config
-```
-
-也可以显式指定输入和输出路径：
+生成可部署的静态网页：
 
 ```console
-npm run build-config -- --proxies ./data/proxies.personal.json --output ./dist/custom.generated.yaml
+npm run build
 ```
 
-输入通过校验后，生成器会直接覆盖目标文件。`dist/` 和 `*.generated.yaml` 已被 Git 忽略；
-使用自定义输出路径时，应继续放在 `dist/` 中或使用 `*.generated.yaml` 文件名。
+构建产物位于 `dist/clash-config/browser/`，其中不包含订阅地址或住宅代理凭据。
 
 > [!WARNING]
-> 生成的 YAML 包含订阅令牌和住宅代理凭据。不要提交、上传或分享该文件。
+> 浏览器下载的 YAML 包含订阅令牌和住宅代理凭据。不要提交、上传或分享该文件，也不要将真实凭据填写到不受信任的在线部署中。
 
 ## 导入 Clash Verge Rev
 
-生成后，在 Clash Verge Rev 的配置或订阅页面导入本地 YAML 文件，并选择
-`dist/clash-config.yaml`。不同版本的菜单名称可能略有差异；导入后启用该配置即可。
+下载后，在 Clash Verge Rev 的配置或订阅页面导入本地 YAML 文件。不同版本的菜单名称可能略有差异；导入后启用该配置即可。
 
 ## GEO 数据
 

@@ -12,7 +12,7 @@ const repositoryRoot = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig([
 	{
-		ignores: ["coverage/**", "dist/**", "node_modules/**", "proxy_providers/**", "*.generated.yaml"],
+		ignores: [".angular/**", "coverage/**", "dist/**", "node_modules/**", "proxy_providers/**", "*.generated.yaml"],
 	},
 	{
 		files: ["scripts/**/*.ts", "src/**/*.ts", "test/**/*.ts"],

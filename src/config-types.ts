@@ -1,4 +1,4 @@
-import { MihomoBuiltInPolicy, MihomoRuleType } from "./mihomo-types.ts";
+import { MihomoBuiltInPolicy, MihomoRuleType } from "./mihomo-types";
 
 /** 一个具名住宅 SOCKS5 代理的端点和凭据。 */
 export interface ResidentialProxyConfig {
@@ -12,11 +12,6 @@ export interface ResidentialProxyConfig {
 export interface ProxiesConfig {
 	airportUrl: string;
 	residentials: Record<string, ResidentialProxyConfig>;
-}
-
-export interface BuildOptions {
-	proxiesConfigPath?: string;
-	outputPath?: string;
 }
 
 /** 只能作为策略组成员使用、不能由路由规则直接选择的节点组。 */

@@ -1,0 +1,12 @@
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"allowImportingTsExtensions": true,
+		"noEmit": true,
+		"module": "preserve",
+		"moduleResolution": "Bundler",
+		"types": ["node"],
+		"verbatimModuleSyntax": true
+	},
+	"include": ["eslint.config.ts", "prettier.config.ts", "test/**/*.ts"]
+}

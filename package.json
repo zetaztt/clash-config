@@ -2,32 +2,47 @@
 	"name": "clash-config",
 	"version": "1.0.0",
 	"private": true,
-	"description": "Generate personal Clash Verge Rev / Mihomo profiles.",
+	"description": "Generate personal Clash Verge Rev / Mihomo profiles in the browser.",
 	"type": "module",
 	"scripts": {
-		"build-config": "tsx scripts/build-config.ts",
+		"start": "ng serve",
+		"build": "ng build",
 		"format": "prettier --write .",
 		"format:check": "prettier --check .",
 		"lint": "eslint .",
-		"test": "tsx --test test/**/*.test.ts",
-		"typecheck": "tsc --noEmit"
+		"test": "npm run test:node && npm run test:web",
+		"test:node": "tsx --test test/**/*.test.ts",
+		"test:web": "ng test --watch=false",
+		"typecheck": "tsc -p tsconfig.node.json --noEmit && ng build --configuration development"
 	},
 	"engines": {
-		"node": ">=24.3.0"
+		"node": ">=24.15.0"
 	},
 	"dependencies": {
+		"@angular/common": "^22.1.0",
+		"@angular/compiler": "^22.1.0",
+		"@angular/core": "^22.1.0",
+		"@angular/forms": "^22.1.0",
+		"@angular/platform-browser": "^22.1.0",
+		"rxjs": "~7.8.0",
+		"tslib": "^2.3.0",
 		"yaml": "^2.9.0"
 	},
 	"devDependencies": {
+		"@angular/build": "^22.1.6",
+		"@angular/cli": "^22.1.6",
+		"@angular/compiler-cli": "^22.1.0",
 		"@types/node": "^24.13.3",
 		"eslint": "^9.39.5",
 		"eslint-import-resolver-typescript": "^4.4.5",
 		"eslint-plugin-import-x": "^4.16.1",
 		"eslint-plugin-unused-imports": "^4.4.1",
 		"jiti": "^2.6.1",
+		"jsdom": "^28.0.0",
 		"prettier": "^3.8.4",
 		"tsx": "^4.23.12",
-		"typescript": "^5.9.3",
-		"typescript-eslint": "^8.65.0"
+		"typescript": "~6.0.2",
+		"typescript-eslint": "^8.65.0",
+		"vitest": "^4.0.8"
 	}
 }

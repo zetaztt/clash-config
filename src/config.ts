@@ -3,8 +3,8 @@ import {
 	MihomoProxyPolicyGroup,
 	type MihomoRulesConfig,
 	type ProxiesConfig,
-} from "./config-types.ts";
-import { MihomoBuiltInPolicy, MihomoRuleType, type MihomoConfig, type MihomoRule } from "./mihomo-types.ts";
+} from "./config-types";
+import { MihomoBuiltInPolicy, MihomoRuleType, type MihomoConfig, type MihomoRule } from "./mihomo-types";
 
 /** 按既定业务优先级声明公开路由规则块；块和块内规则类型顺序共同决定匹配优先级。 */
 export const rulesConfigs: MihomoRulesConfig[] = [

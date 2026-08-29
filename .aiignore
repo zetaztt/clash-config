@@ -12,6 +12,7 @@ proxy_providers/
 
 # Dependencies and test coverage are reproducible and add noisy context
 node_modules/
+.angular/
 coverage/
 *.tsbuildinfo
 
