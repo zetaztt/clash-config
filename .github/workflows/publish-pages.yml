@@ -1,0 +1,40 @@
+name: Publish web app
+
+on:
+    workflow_dispatch:
+    push:
+        branches:
+            - main
+
+permissions:
+    contents: write
+
+jobs:
+    publish:
+        name: Publish web app
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout source
+              uses: actions/checkout@v6
+
+            - name: Set up Node.js
+              uses: actions/setup-node@v6
+              with:
+                  node-version: 24.15.0
+                  cache: npm
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Build for GitHub Pages
+              run: npm run build -- --base-href /clash-config/
+
+            - name: Disable Jekyll processing
+              run: touch dist/clash-config/browser/.nojekyll
+
+            - name: Publish
+              uses: peaceiris/actions-gh-pages@v4
+              with:
+                  github_token: ${{ secrets.GITHUB_TOKEN }}
+                  publish_dir: dist/clash-config/browser
