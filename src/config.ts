@@ -388,7 +388,7 @@ export function createMihomoConfig(proxiesConfig: ProxiesConfig): MihomoConfig {
 			{
 				name: MihomoProxyPolicyGroup.FinalPolicy,
 				type: "select",
-				proxies: [MihomoProxyPolicyGroup.ProxyPolicy, MihomoBuiltInPolicy.Direct],
+				proxies: [MihomoProxyPolicyGroup.ProxyPolicy, MihomoProxyPolicyGroup.RiskPolicy, MihomoBuiltInPolicy.Direct],
 			},
 		],
 		rules: createMihomoRules(rulesConfigs),
