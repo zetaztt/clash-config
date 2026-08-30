@@ -1,10 +1,6 @@
 # Git internals
 .git/
 
-# Real local secrets
-proxies*.json
-data/proxies*.json
-
 # Generated profiles and Mihomo caches can contain credentials
 dist/
 proxy_providers/

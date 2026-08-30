@@ -4,8 +4,6 @@ coverage
 proxy_providers
 data/v2rayn_routing_white.json
 data/v2rayn_routing_black.json
-proxies*.json
-data/proxies*.json
 *.generated.yaml
 package-lock.json
 .vscode
