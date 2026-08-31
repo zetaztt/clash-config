@@ -125,6 +125,11 @@ h1 span {
 	gap: 16px;
 }
 
+.summary-buttons {
+	display: flex;
+	gap: 8px;
+}
+
 .node-summary {
 	display: grid;
 	gap: 9px;
@@ -315,6 +320,16 @@ input.ng-touched.ng-invalid {
 .residential-list {
 	display: grid;
 	gap: 16px;
+}
+
+.provider-list {
+	display: grid;
+	gap: 16px;
+}
+
+.provider-name-button:disabled {
+	cursor: wait;
+	opacity: 0.6;
 }
 
 .residential-card {
@@ -582,6 +597,10 @@ input.ng-touched.ng-invalid {
 	.overview-heading {
 		align-items: stretch;
 		flex-direction: column;
+	}
+
+	.summary-buttons {
+		align-items: flex-start;
 	}
 
 	.section-heading,

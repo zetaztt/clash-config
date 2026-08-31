@@ -12,6 +12,17 @@ import {
 
 import { createMihomoYaml } from "../config-yaml";
 import { isReservedProxyName } from "../proxies-config";
+import { fetchProxyProviderName } from "../proxy-provider-name";
+
+type ProxyProviderForm = FormGroup<{
+	name: FormControl<string>;
+	url: FormControl<string>;
+}>;
+
+interface ProxyProviderFormValue {
+	name: string;
+	url: string;
+}
 
 type ResidentialForm = FormGroup<{
 	name: FormControl<string>;
@@ -30,18 +41,19 @@ interface ResidentialFormValue {
 }
 
 interface StoredProxySettings {
-	version: 1;
-	airportUrl: string;
+	version: 2;
+	proxyProviders: ProxyProviderFormValue[];
 	residentials: ResidentialFormValue[];
 }
 
 interface ProxySummary {
-	airport: string;
+	proxyProviders: Array<{ name: string; host: string }>;
 	residentials: Array<Pick<ResidentialFormValue, "name" | "server">>;
 }
 
 // 版本化键名让未来的表单结构可以安全迁移，而不会误读已持久化的凭据。
-const proxySettingsStorageKey = "clash-config:proxy-settings:v1";
+const proxySettingsStorageKey = "clash-config:proxy-settings:v2";
+const legacyProxySettingsStorageKey = "clash-config:proxy-settings:v1";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -50,7 +62,20 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function parseStoredProxySettings(serialized: string): StoredProxySettings | null {
 	try {
 		const value: unknown = JSON.parse(serialized);
-		if (!isRecord(value) || value["version"] !== 1 || typeof value["airportUrl"] !== "string") {
+		if (!isRecord(value) || value["version"] !== 2) {
+			return null;
+		}
+		const proxyProviders = value["proxyProviders"];
+		if (!Array.isArray(proxyProviders) || proxyProviders.length > 100) {
+			return null;
+		}
+		const parsedProxyProviders = proxyProviders.map((provider): ProxyProviderFormValue | null => {
+			if (!isRecord(provider) || typeof provider["name"] !== "string" || typeof provider["url"] !== "string") {
+				return null;
+			}
+			return { name: provider["name"], url: provider["url"] };
+		});
+		if (parsedProxyProviders.some((provider) => provider === null)) {
 			return null;
 		}
 
@@ -82,10 +107,28 @@ function parseStoredProxySettings(serialized: string): StoredProxySettings | nul
 		}
 
 		return {
-			version: 1,
-			airportUrl: value["airportUrl"],
+			version: 2,
+			proxyProviders: parsedProxyProviders as ProxyProviderFormValue[],
 			residentials: parsedResidentials as ResidentialFormValue[],
 		};
+	} catch {
+		return null;
+	}
+}
+
+function parseLegacyStoredProxySettings(serialized: string): StoredProxySettings | null {
+	try {
+		const value: unknown = JSON.parse(serialized);
+		if (!isRecord(value) || value["version"] !== 1 || typeof value["airportUrl"] !== "string") {
+			return null;
+		}
+		return parseStoredProxySettings(
+			JSON.stringify({
+				version: 2,
+				proxyProviders: [{ name: "airport", url: value["airportUrl"] }],
+				residentials: value["residentials"],
+			}),
+		);
 	} catch {
 		return null;
 	}
@@ -111,6 +154,10 @@ function proxyName(control: AbstractControl<string>): ValidationErrors | null {
 	return isReservedProxyName(value) ? { reserved: true } : null;
 }
 
+function providerName(control: AbstractControl<string>): ValidationErrors | null {
+	return control.value === control.value.trim() ? null : { whitespace: true };
+}
+
 function uniqueNames(control: AbstractControl): ValidationErrors | null {
 	const rows = control.value as Array<{ name?: unknown }>;
 	const names = rows
@@ -119,8 +166,17 @@ function uniqueNames(control: AbstractControl): ValidationErrors | null {
 	return new Set(names).size === names.length ? null : { duplicateNames: true };
 }
 
-function atLeastOneResidential(control: AbstractControl): ValidationErrors | null {
-	return Array.isArray(control.value) && control.value.length > 0 ? null : { noResidentials: true };
+function createProxyProviderForm(value?: ProxyProviderFormValue): ProxyProviderForm {
+	return new FormGroup({
+		name: new FormControl(value?.name ?? "", {
+			nonNullable: true,
+			validators: [Validators.required, providerName],
+		}),
+		url: new FormControl(value?.url ?? "", {
+			nonNullable: true,
+			validators: [Validators.required, httpUrl],
+		}),
+	});
 }
 
 function createResidentialForm(value?: ResidentialFormValue): ResidentialForm {
@@ -188,21 +244,25 @@ function parseResidentialProxyLink(value: string): ResidentialFormValue {
 }
 
 /** 摘要避免展示订阅令牌、用户名和密码，只保留主页所需的基本信息。 */
-function createProxySummary(value: { airportUrl: string; residentials: ResidentialFormValue[] }): ProxySummary {
-	let airport = "尚未填写";
-	try {
-		const url = new URL(value.airportUrl);
-		if (["http:", "https:"].includes(url.protocol)) {
-			airport = url.host;
-		}
-	} catch {
-		if (value.airportUrl !== "") {
-			airport = "地址待校验";
-		}
-	}
-
+function createProxySummary(value: {
+	proxyProviders: ProxyProviderFormValue[];
+	residentials: ResidentialFormValue[];
+}): ProxySummary {
 	return {
-		airport,
+		proxyProviders: value.proxyProviders.map(({ name, url }) => {
+			let host = "地址待校验";
+			try {
+				const parsedUrl = new URL(url);
+				if (["http:", "https:"].includes(parsedUrl.protocol)) {
+					host = parsedUrl.host;
+				}
+			} catch {
+				if (url === "") {
+					host = "地址待填写";
+				}
+			}
+			return { name, host };
+		}),
 		residentials: value.residentials.map(({ name, server }) => ({ name, server })),
 	};
 }
@@ -218,16 +278,15 @@ export class App {
 	private readonly destroyRef = inject(DestroyRef);
 	private suppressAutoSave = false;
 	protected readonly form = new FormGroup({
-		airportUrl: new FormControl("", {
-			nonNullable: true,
-			validators: [Validators.required, httpUrl],
-		}),
-		residentials: new FormArray<ResidentialForm>([], [uniqueNames, atLeastOneResidential]),
+		proxyProviders: new FormArray<ProxyProviderForm>([], [uniqueNames]),
+		residentials: new FormArray<ResidentialForm>([], [uniqueNames]),
 	});
 	protected readonly generationError = signal<string | null>(null);
 	protected readonly downloadComplete = signal(false);
 	protected readonly copyComplete = signal(false);
 	protected readonly proxyLinkError = signal<string | null>(null);
+	protected readonly providerNameError = signal<string | null>(null);
+	protected readonly readingProviderIndex = signal<number | null>(null);
 	protected readonly autoSaveError = signal(false);
 	protected readonly activeDialog = signal<"subscription" | "residential" | null>(null);
 	protected readonly editingResidentialIndex = signal<number | null>(null);
@@ -245,6 +304,23 @@ export class App {
 
 	protected get residentials(): FormArray<ResidentialForm> {
 		return this.form.controls.residentials;
+	}
+
+	protected get proxyProviders(): FormArray<ProxyProviderForm> {
+		return this.form.controls.proxyProviders;
+	}
+
+	protected addProxyProvider(): void {
+		this.proxyProviders.push(createProxyProviderForm());
+		this.providerNameError.set(null);
+		this.openSubscriptionEditor();
+	}
+
+	protected removeProxyProvider(index: number): void {
+		if (index >= 0 && index < this.proxyProviders.length) {
+			this.proxyProviders.removeAt(index);
+			this.providerNameError.set(null);
+		}
 	}
 
 	protected addResidential(): void {
@@ -265,7 +341,34 @@ export class App {
 
 	protected openSubscriptionEditor(): void {
 		this.editingResidentialIndex.set(null);
+		this.providerNameError.set(null);
 		this.activeDialog.set("subscription");
+	}
+
+	/** 仅在用户点击后直连订阅服务读取名称；失败信息不回显订阅地址或响应内容。 */
+	protected async readProxyProviderName(index: number): Promise<void> {
+		const provider = this.proxyProviders.at(index);
+		if (provider === undefined) {
+			return;
+		}
+		provider.controls.url.markAsTouched();
+		if (provider.controls.url.invalid) {
+			this.providerNameError.set("请先填写有效的 HTTP 或 HTTPS 订阅地址。");
+			return;
+		}
+
+		this.providerNameError.set(null);
+		this.readingProviderIndex.set(index);
+		try {
+			provider.controls.name.setValue(await fetchProxyProviderName(provider.controls.url.value));
+			provider.controls.name.markAsTouched();
+		} catch {
+			this.providerNameError.set(
+				"无法读取订阅名称。请手动填写；浏览器无法伪装 Clash Verge 的 User-Agent，跨域服务也必须暴露 Content-Disposition。",
+			);
+		} finally {
+			this.readingProviderIndex.set(null);
+		}
 	}
 
 	protected openResidentialEditor(index: number): void {
@@ -306,7 +409,7 @@ export class App {
 	/** 同时清空当前表单和持久化副本，避免下一次值变更立即重新写入旧凭据。 */
 	protected clearSavedSettings(): void {
 		this.suppressAutoSave = true;
-		this.form.controls.airportUrl.setValue("", { emitEvent: false });
+		this.proxyProviders.clear({ emitEvent: false });
 		this.residentials.clear({ emitEvent: false });
 		this.form.markAsUntouched();
 		this.suppressAutoSave = false;
@@ -317,6 +420,7 @@ export class App {
 		this.updateSummary();
 		try {
 			localStorage.removeItem(proxySettingsStorageKey);
+			localStorage.removeItem(legacyProxySettingsStorageKey);
 		} catch {
 			this.autoSaveError.set(true);
 		}
@@ -324,25 +428,37 @@ export class App {
 
 	private restoreSavedSettings(): void {
 		try {
-			const serialized = localStorage.getItem(proxySettingsStorageKey);
-			if (serialized === null) {
+			const currentSerialized = localStorage.getItem(proxySettingsStorageKey);
+			const legacySerialized = localStorage.getItem(legacyProxySettingsStorageKey);
+			if (currentSerialized === null && legacySerialized === null) {
 				return;
 			}
 
-			const settings = parseStoredProxySettings(serialized);
+			const settings =
+				currentSerialized === null
+					? parseLegacyStoredProxySettings(legacySerialized as string)
+					: parseStoredProxySettings(currentSerialized);
 			if (settings === null) {
 				localStorage.removeItem(proxySettingsStorageKey);
+				localStorage.removeItem(legacyProxySettingsStorageKey);
 				return;
 			}
 
 			this.suppressAutoSave = true;
-			this.form.controls.airportUrl.setValue(settings.airportUrl, { emitEvent: false });
+			this.proxyProviders.clear({ emitEvent: false });
+			for (const provider of settings.proxyProviders) {
+				this.proxyProviders.push(createProxyProviderForm(provider), { emitEvent: false });
+			}
 			this.residentials.clear({ emitEvent: false });
 			for (const residential of settings.residentials) {
 				this.residentials.push(createResidentialForm(residential), { emitEvent: false });
 			}
 			this.suppressAutoSave = false;
 			this.updateSummary();
+			if (currentSerialized === null) {
+				this.saveSettings();
+				localStorage.removeItem(legacyProxySettingsStorageKey);
+			}
 		} catch {
 			this.suppressAutoSave = false;
 			this.autoSaveError.set(true);
@@ -356,7 +472,7 @@ export class App {
 		}
 
 		const settings: StoredProxySettings = {
-			version: 1,
+			version: 2,
 			...this.form.getRawValue(),
 		};
 		try {
@@ -378,10 +494,8 @@ export class App {
 		this.copyComplete.set(false);
 		this.form.markAllAsTouched();
 		if (this.form.invalid) {
-			if (this.form.controls.airportUrl.invalid) {
+			if (this.proxyProviders.invalid) {
 				this.openSubscriptionEditor();
-			} else if (this.residentials.length === 0) {
-				this.addResidential();
 			} else {
 				const invalidIndex = this.residentials.controls.findIndex((residential) => residential.invalid);
 				this.openResidentialEditor(Math.max(invalidIndex, 0));
@@ -390,6 +504,7 @@ export class App {
 		}
 
 		const value = this.form.getRawValue();
+		const proxyProviders = Object.fromEntries(value.proxyProviders.map(({ name, url }) => [name, { url }]));
 		const residentials = Object.fromEntries(
 			value.residentials.map(({ name, server, port, username, password }) => [
 				name,
@@ -398,7 +513,7 @@ export class App {
 		);
 
 		try {
-			return createMihomoYaml({ airportUrl: value.airportUrl, residentials });
+			return createMihomoYaml({ proxyProviders, residentials });
 		} catch (error) {
 			this.generationError.set(error instanceof Error ? error.message : "配置生成失败，请检查输入。");
 			return null;

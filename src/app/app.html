@@ -3,7 +3,7 @@
 		<div class="eyebrow">LOCAL CONFIG STUDIO</div>
 		<h1>把代理链路，<br /><span>留在浏览器里。</span></h1>
 		<p class="intro">
-			填写机场订阅和住宅代理，立即生成可导入 Clash Verge Rev / Mihomo 的
+			填写多份代理订阅和住宅代理，立即生成可导入 Clash Verge Rev / Mihomo 的
 			YAML。没有上传，没有账户，填写内容会自动保存在当前浏览器。
 		</p>
 		<div class="privacy-note"><span aria-hidden="true">●</span>仅在本机浏览器处理和保存</div>
@@ -15,11 +15,26 @@
 			<div>
 				<div class="overview-heading">
 					<div>
-						<h2>机场订阅</h2>
-						<p>{{ summary().airport }}</p>
+						<h2>代理订阅</h2>
+						<p>{{ summary().proxyProviders.length }} 个 Provider</p>
 					</div>
-					<button class="summary-edit-button" type="button" (click)="openSubscriptionEditor()">编辑</button>
+					<div class="summary-buttons">
+						<button class="summary-edit-button" type="button" (click)="openSubscriptionEditor()">
+							编辑
+						</button>
+						<button class="summary-edit-button" type="button" (click)="addProxyProvider()">添加订阅</button>
+					</div>
 				</div>
+				<ul class="node-summary provider-summary">
+					@for (provider of summary().proxyProviders; track $index; let index = $index) {
+					<li>
+						<div>
+							<strong>{{ provider.name || '未命名 Provider ' + (index + 1) }}</strong
+							><span>{{ provider.host }}</span>
+						</div>
+					</li>
+					}
+				</ul>
 			</div>
 		</div>
 		<div class="overview-section residential-overview">
@@ -89,22 +104,72 @@
 		<header class="modal-heading">
 			<div>
 				<span class="step">订阅</span>
-				<h2 id="subscription-heading">编辑机场订阅</h2>
+				<h2 id="subscription-heading">编辑代理订阅</h2>
 			</div>
 			<button class="close-button" type="button" (click)="closeDialog()" aria-label="关闭订阅编辑窗口">×</button>
 		</header>
 		<div class="modal-body">
 			<section class="section-block">
-				<label for="airport-url">Airport URL</label
-				><input
-					id="airport-url"
-					type="url"
-					formControlName="airportUrl"
-					placeholder="https://example.com/subscription?token=..."
-					spellcheck="false"
-					autocomplete="off" />@if (form.controls.airportUrl.touched && form.controls.airportUrl.invalid) {
-				<p class="field-error">请输入完整的 HTTP 或 HTTPS 订阅地址。</p>
+				<div class="section-heading">
+					<div>
+						<h3>Proxy Providers</h3>
+						<p>每份订阅会独立更新，并共同加入“代理节点”。</p>
+					</div>
+					<button class="add-button" type="button" (click)="addProxyProvider()">+ 添加订阅</button>
+				</div>
+				<div class="provider-list" formArrayName="proxyProviders">
+					@for (provider of proxyProviders.controls; track provider; let index = $index) {
+					<fieldset class="residential-card provider-card" [formGroupName]="index">
+						<legend>Provider {{ index + 1 }}</legend>
+						<button class="remove-button" type="button" (click)="removeProxyProvider(index)">
+							删除订阅
+						</button>
+						<div class="field field-wide">
+							<label [for]="'provider-name-' + index">Provider 名称</label
+							><input
+								[id]="'provider-name-' + index"
+								type="text"
+								formControlName="name"
+								placeholder="可从订阅响应头读取"
+								autocomplete="off" />@if (provider.controls.name.touched &&
+							provider.controls.name.invalid) {
+							<p class="field-error">名称不能为空且前后不能有空格。</p>
+							}
+						</div>
+						<div class="field field-wide">
+							<label [for]="'provider-url-' + index">订阅 URL</label>
+							<div class="proxy-link-input">
+								<input
+									[id]="'provider-url-' + index"
+									type="url"
+									formControlName="url"
+									placeholder="https://example.com/subscription?token=..."
+									spellcheck="false"
+									autocomplete="off" />
+								<button
+									class="parse-link-button provider-name-button"
+									type="button"
+									[disabled]="readingProviderIndex() !== null"
+									(click)="readProxyProviderName(index)">
+									{{ readingProviderIndex() === index ? '读取中…' : '读取名称' }}
+								</button>
+							</div>
+							@if (provider.controls.url.touched && provider.controls.url.invalid) {
+							<p class="field-error">请输入完整的 HTTP 或 HTTPS 订阅地址。</p>
+							}
+						</div>
+					</fieldset>
+					}
+				</div>
+				@if (proxyProviders.touched && proxyProviders.hasError("duplicateNames")) {
+				<p class="form-error">每份订阅必须使用不同的 Provider 名称。</p>
+				} @if (providerNameError()) {
+				<p class="form-error" role="alert">{{ providerNameError() }}</p>
 				}
+				<p class="field-hint">
+					“读取名称”会直接请求订阅服务，并按 Content-Disposition 的 filename*、filename
+					顺序读取；不会经过本站服务器。可以不添加 Provider，此时“代理节点”的 Provider 列表为空。
+				</p>
 			</section>
 		</div>
 		<footer class="modal-actions">

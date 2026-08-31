@@ -8,7 +8,10 @@ import { MihomoProxyNodeGroup, MihomoProxyPolicyGroup } from "../src/config-type
 import { MihomoBuiltInPolicy, type MihomoConfig } from "../src/mihomo-types.ts";
 
 const syntheticSettings = {
-	airportUrl: "https://example.com/subscribe?token=replace-me",
+	proxyProviders: {
+		"Synthetic Airport": { url: "https://example.com/subscribe?token=replace-me" },
+		"Synthetic Backup": { url: "https://backup.example.com/subscribe?token=replace-me" },
+	},
 	residentials: {
 		"Synthetic-IP": {
 			server: "residential.example.com",
@@ -22,7 +25,16 @@ const syntheticSettings = {
 test("serializes validated browser settings as a Mihomo profile", () => {
 	const config = parse(createMihomoYaml(syntheticSettings)) as MihomoConfig;
 
-	assert.equal(config["proxy-providers"]["airport"].url, syntheticSettings.airportUrl);
+	assert.deepEqual(Object.keys(config["proxy-providers"]), ["Synthetic Airport", "Synthetic Backup"]);
+	assert.equal(
+		config["proxy-providers"]["Synthetic Airport"]?.url,
+		syntheticSettings.proxyProviders["Synthetic Airport"].url,
+	);
+	assert.deepEqual(config["proxy-providers"]["Synthetic Airport"]?.path, "./proxy_providers/provider-1.yaml");
+	assert.deepEqual(config["proxy-groups"].find(({ name }) => name === MihomoProxyNodeGroup.ProxyNodes)?.use, [
+		"Synthetic Airport",
+		"Synthetic Backup",
+	]);
 	assert.deepEqual(
 		config.proxies.map((proxy) => proxy.name),
 		["Synthetic-IP"],
@@ -31,11 +43,23 @@ test("serializes validated browser settings as a Mihomo profile", () => {
 	assert.equal(config.rules.at(-1), `MATCH,${MihomoProxyPolicyGroup.FinalPolicy}`);
 });
 
-test("rejects settings without a residential proxy", () => {
-	assert.throws(
-		() => createMihomoYaml({ ...syntheticSettings, residentials: {} }),
-		/residentials must contain at least one named residential proxy/,
+test("allows no residential proxies", () => {
+	const config = parse(createMihomoYaml({ ...syntheticSettings, residentials: {} })) as MihomoConfig;
+	assert.deepEqual(config.proxies, []);
+	assert.deepEqual(
+		config["proxy-groups"].find(({ name }) => name === MihomoProxyNodeGroup.ResidentialNodes),
+		{
+			name: MihomoProxyNodeGroup.ResidentialNodes,
+			type: "select",
+			proxies: [],
+		},
 	);
+});
+
+test("allows both proxy providers and residential proxies to be empty", () => {
+	const config = parse(createMihomoYaml({ proxyProviders: {}, residentials: {} })) as MihomoConfig;
+	assert.deepEqual(config["proxy-providers"], {});
+	assert.deepEqual(config.proxies, []);
 });
 
 test("rejects residential names that conflict with groups and built-in policies", () => {
@@ -67,8 +91,37 @@ test("rejects invalid ports and subscription URLs", () => {
 		/port must be an integer from 1 through 65535/,
 	);
 	assert.throws(
-		() => createMihomoYaml({ ...syntheticSettings, airportUrl: "file:///not-a-subscription" }),
-		/airportUrl must be an absolute HTTP or HTTPS URL/,
+		() =>
+			createMihomoYaml({
+				...syntheticSettings,
+				proxyProviders: { Broken: { url: "file:///not-a-subscription" } },
+			}),
+		/proxyProviders entry 1.url must be an absolute HTTP or HTTPS URL/,
+	);
+});
+
+test("allows no proxy providers and rejects unnamed providers", () => {
+	const config = parse(createMihomoYaml({ ...syntheticSettings, proxyProviders: {} })) as MihomoConfig;
+	assert.deepEqual(config["proxy-providers"], {});
+	assert.deepEqual(
+		config["proxy-groups"].find(({ name }) => name === MihomoProxyNodeGroup.ProxyNodes),
+		{
+			name: MihomoProxyNodeGroup.ProxyNodes,
+			type: "select",
+			use: [],
+		},
+	);
+	assert.throws(
+		() => createMihomoYaml({ ...syntheticSettings, proxyProviders: { " ": { url: "https://example.com" } } }),
+		/name must be non-empty and have no surrounding whitespace/,
+	);
+	assert.throws(
+		() => createMihomoYaml({ residentials: syntheticSettings.residentials }),
+		/proxyProviders must be an object/,
+	);
+	assert.throws(
+		() => createMihomoYaml({ proxyProviders: syntheticSettings.proxyProviders }),
+		/residentials must be an object/,
 	);
 });
 

@@ -8,9 +8,14 @@ export interface ResidentialProxyConfig {
 	password: string;
 }
 
+/** 一份具名 HTTP 代理 Provider 订阅；名称由外层 Record 键保存。 */
+export interface ProxyProviderConfig {
+	url: string;
+}
+
 /** 用于构建 Mihomo 配置的敏感代理 Provider 和住宅代理输入。 */
 export interface ProxiesConfig {
-	airportUrl: string;
+	proxyProviders: Record<string, ProxyProviderConfig>;
 	residentials: Record<string, ResidentialProxyConfig>;
 }
 

@@ -2,6 +2,7 @@ import {
 	MihomoProxyNodeGroup,
 	MihomoProxyPolicyGroup,
 	type ProxiesConfig,
+	type ProxyProviderConfig,
 	type ResidentialProxyConfig,
 } from "./config-types";
 import { MihomoBuiltInPolicy } from "./mihomo-types";
@@ -25,15 +26,50 @@ function requiredString(config: Record<string, unknown>, name: string, label = n
 	return value;
 }
 
+function validateHttpUrl(value: string, label: string): string {
+	let parsedUrl: URL;
+	try {
+		parsedUrl = new URL(value);
+	} catch {
+		throw new Error(`${label} must be an absolute HTTP or HTTPS URL.`);
+	}
+	if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+		throw new Error(`${label} must be an absolute HTTP or HTTPS URL.`);
+	}
+	return value;
+}
+
 /** 判断名称是否会与 Mihomo 代理组或内置策略发生解析冲突。 */
 export function isReservedProxyName(name: string): boolean {
 	return reservedProxyNames.has(name);
 }
 
+/** 校验具名订阅，并保持声明顺序供 Provider 与代理组引用。 */
+function validateProxyProviders(value: unknown): Record<string, ProxyProviderConfig> {
+	if (!isRecord(value)) {
+		throw new Error("proxyProviders must be an object.");
+	}
+
+	return Object.fromEntries(
+		Object.entries(value).map(([name, provider], index) => {
+			const field = `proxyProviders entry ${index + 1}`;
+			if (name.trim() === "" || name !== name.trim()) {
+				throw new Error(`${field} name must be non-empty and have no surrounding whitespace.`);
+			}
+			if (!isRecord(provider)) {
+				throw new Error(`${field} must be an object.`);
+			}
+
+			const url = validateHttpUrl(requiredString(provider, "url", `${field}.url`), `${field}.url`);
+			return [name, { url }];
+		}),
+	);
+}
+
 /** 校验具名住宅代理输入，且不在错误信息中泄露名称、端点或凭据。 */
 function validateResidentials(value: unknown): Record<string, ResidentialProxyConfig> {
-	if (!isRecord(value) || Object.keys(value).length === 0) {
-		throw new Error("residentials must contain at least one named residential proxy.");
+	if (!isRecord(value)) {
+		throw new Error("residentials must be an object.");
 	}
 
 	return Object.fromEntries(
@@ -70,19 +106,8 @@ export function validateProxiesConfig(value: unknown): ProxiesConfig {
 		throw new Error("Proxy settings must be an object.");
 	}
 
-	const airportUrl = requiredString(value, "airportUrl");
-	let parsedUrl: URL;
-	try {
-		parsedUrl = new URL(airportUrl);
-	} catch {
-		throw new Error("airportUrl must be an absolute HTTP or HTTPS URL.");
-	}
-	if (!["http:", "https:"].includes(parsedUrl.protocol)) {
-		throw new Error("airportUrl must be an absolute HTTP or HTTPS URL.");
-	}
-
 	return {
-		airportUrl,
+		proxyProviders: validateProxyProviders(value["proxyProviders"]),
 		residentials: validateResidentials(value["residentials"]),
 	};
 }

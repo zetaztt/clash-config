@@ -288,6 +288,7 @@ export function createMihomoRules(configs: MihomoRulesConfig[]): MihomoRule[] {
 }
 
 export function createMihomoConfig(proxiesConfig: ProxiesConfig): MihomoConfig {
+	const proxyProviderNames = Object.keys(proxiesConfig.proxyProviders);
 	const residentialNames = Object.keys(proxiesConfig.residentials);
 	const domesticDns = "https://dns.alidns.com/dns-query";
 
@@ -331,22 +332,26 @@ export function createMihomoConfig(proxiesConfig: ProxiesConfig): MihomoConfig {
 			"store-selected": true,
 			"store-fake-ip": true,
 		},
-		"proxy-providers": {
-			airport: {
-				type: "http",
-				url: proxiesConfig.airportUrl,
-				path: "./proxy_providers/airport.yaml",
-				interval: 3600,
-				"health-check": {
-					enable: true,
-					url: "https://www.gstatic.com/generate_204",
-					interval: 300,
-					timeout: 5000,
-					lazy: true,
-					"expected-status": 204,
+		"proxy-providers": Object.fromEntries(
+			Object.entries(proxiesConfig.proxyProviders).map(([name, provider], index) => [
+				name,
+				{
+					type: "http",
+					url: provider.url,
+					// 缓存文件名不采用远端名称，避免名称中的路径字符改变缓存位置。
+					path: `./proxy_providers/provider-${index + 1}.yaml`,
+					interval: 3600,
+					"health-check": {
+						enable: true,
+						url: "https://www.gstatic.com/generate_204",
+						interval: 300,
+						timeout: 5000,
+						lazy: true,
+						"expected-status": 204,
+					},
 				},
-			},
-		},
+			]),
+		),
 		proxies: Object.entries(proxiesConfig.residentials).map(([name, residential]) => ({
 			name,
 			type: "socks5",
@@ -361,6 +366,16 @@ export function createMihomoConfig(proxiesConfig: ProxiesConfig): MihomoConfig {
 		})),
 		"proxy-groups": [
 			{
+				name: MihomoProxyNodeGroup.ProxyNodes,
+				type: "select",
+				use: proxyProviderNames,
+			},
+			{
+				name: MihomoProxyNodeGroup.ResidentialNodes,
+				type: "select",
+				proxies: residentialNames,
+			},
+			{
 				name: MihomoProxyPolicyGroup.ProxyPolicy,
 				type: "select",
 				proxies: [MihomoProxyNodeGroup.ProxyNodes, MihomoProxyNodeGroup.ResidentialNodes],
@@ -371,16 +386,6 @@ export function createMihomoConfig(proxiesConfig: ProxiesConfig): MihomoConfig {
 				proxies: [MihomoProxyNodeGroup.ResidentialNodes, MihomoProxyPolicyGroup.ProxyPolicy],
 			},
 			{
-				name: MihomoProxyNodeGroup.ProxyNodes,
-				type: "select",
-				use: ["airport"],
-			},
-			{
-				name: MihomoProxyNodeGroup.ResidentialNodes,
-				type: "select",
-				proxies: residentialNames,
-			},
-			{
 				name: MihomoProxyPolicyGroup.AdPolicy,
 				type: "select",
 				proxies: [MihomoBuiltInPolicy.Reject, MihomoBuiltInPolicy.Pass],
@@ -388,7 +393,11 @@ export function createMihomoConfig(proxiesConfig: ProxiesConfig): MihomoConfig {
 			{
 				name: MihomoProxyPolicyGroup.FinalPolicy,
 				type: "select",
-				proxies: [MihomoProxyPolicyGroup.ProxyPolicy, MihomoProxyPolicyGroup.RiskPolicy, MihomoBuiltInPolicy.Direct],
+				proxies: [
+					MihomoProxyPolicyGroup.ProxyPolicy,
+					MihomoProxyPolicyGroup.RiskPolicy,
+					MihomoBuiltInPolicy.Direct,
+				],
 			},
 		],
 		rules: createMihomoRules(rulesConfigs),

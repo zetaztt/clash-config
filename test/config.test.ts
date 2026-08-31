@@ -161,7 +161,7 @@ test("keeps inlined rule structure valid", () => {
 
 test("builds auto-updating Loyalsoldier DAT geodata settings", () => {
 	const config = createMihomoConfig({
-		airportUrl: "https://example.com/subscribe?token=replace-me",
+		proxyProviders: { Synthetic: { url: "https://example.com/subscribe?token=replace-me" } },
 		residentials: {},
 	});
 
@@ -176,7 +176,7 @@ test("builds auto-updating Loyalsoldier DAT geodata settings", () => {
 
 test("persists fake-IP mappings and races TCP connection addresses", () => {
 	const config = createMihomoConfig({
-		airportUrl: "https://example.com/subscribe?token=replace-me",
+		proxyProviders: { Synthetic: { url: "https://example.com/subscribe?token=replace-me" } },
 		residentials: {},
 	});
 
@@ -189,7 +189,7 @@ test("persists fake-IP mappings and races TCP connection addresses", () => {
 
 test("builds DNS settings that proxy encrypted overseas resolution", () => {
 	const config = createMihomoConfig({
-		airportUrl: "https://example.com/subscribe?token=replace-me",
+		proxyProviders: { Synthetic: { url: "https://example.com/subscribe?token=replace-me" } },
 		residentials: {
 			"Synthetic-IP": {
 				server: "residential.example.com",
