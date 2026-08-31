@@ -10,7 +10,7 @@
 	</header>
 
 	<section class="config-card overview" aria-label="当前配置概要">
-		<div class="overview-section">
+		<div class="overview-section provider-overview">
 			<span class="step">01</span>
 			<div>
 				<div class="overview-heading">
@@ -18,12 +18,7 @@
 						<h2>代理订阅</h2>
 						<p>{{ summary().proxyProviders.length }} 个 Provider</p>
 					</div>
-					<div class="summary-buttons">
-						<button class="summary-edit-button" type="button" (click)="openSubscriptionEditor()">
-							编辑
-						</button>
-						<button class="summary-edit-button" type="button" (click)="addProxyProvider()">添加订阅</button>
-					</div>
+					<button class="summary-edit-button" type="button" (click)="addProxyProvider()">添加订阅</button>
 				</div>
 				<ul class="node-summary provider-summary">
 					@for (provider of summary().proxyProviders; track $index; let index = $index) {
@@ -32,6 +27,9 @@
 							<strong>{{ provider.name || '未命名 Provider ' + (index + 1) }}</strong
 							><span>{{ provider.host }}</span>
 						</div>
+						<button class="summary-edit-button" type="button" (click)="openProviderEditor(index)">
+							编辑
+						</button>
 					</li>
 					}
 				</ul>
@@ -65,6 +63,7 @@
 		<footer class="action-bar">
 			<div><strong>配置仅在本机浏览器处理</strong><span>订阅令牌、用户名和密码不会在主页显示</span></div>
 			<div class="action-buttons">
+				<button class="clear-data-button" type="button" (click)="clearSavedSettings()">清除全部数据</button>
 				<button class="copy-button" type="button" (click)="copyConfig()">复制配置</button>
 				<button class="download-button" type="button" (click)="downloadConfig()">
 					生成并下载 YAML <span aria-hidden="true">↓</span>
@@ -90,67 +89,57 @@
 	</footer>
 </main>
 
-@if (activeDialog() === "subscription") {
+@if (activeDialog() === "provider" && editingProvider; as provider) {
 <div class="modal-backdrop" role="presentation" (click)="closeDialog()">
 	<form
-		class="modal compact-modal subscription-modal"
-		[formGroup]="form"
-		(ngSubmit)="closeDialog()"
+		class="modal compact-modal provider-modal"
+		[formGroup]="provider"
+		(ngSubmit)="completeProvider()"
 		novalidate
 		role="dialog"
 		aria-modal="true"
-		aria-labelledby="subscription-heading"
+		aria-labelledby="provider-heading"
 		(click)="$event.stopPropagation()">
 		<header class="modal-heading">
 			<div>
-				<span class="step">订阅</span>
-				<h2 id="subscription-heading">编辑代理订阅</h2>
+				<span class="step">{{ editingProviderIndex() === null ? '新增订阅' : '订阅' }}</span>
+				<h2 id="provider-heading">
+					{{ editingProviderIndex() === null ? '添加' : '编辑' }} Provider {{ editingProviderIndex() === null
+					? proxyProviders.length + 1 : (editingProviderIndex() ?? 0) + 1 }}
+				</h2>
 			</div>
-			<button class="close-button" type="button" (click)="closeDialog()" aria-label="关闭订阅编辑窗口">×</button>
+			<button class="close-button" type="button" (click)="closeDialog()" aria-label="关闭 Provider 编辑窗口">
+				×
+			</button>
 		</header>
 		<div class="modal-body">
 			<section class="section-block">
-				<div class="section-heading">
-					<div>
-						<h3>Proxy Providers</h3>
-						<p>每份订阅会独立更新，并共同加入“代理节点”。</p>
+				<div class="residential-card provider-card">
+					<div class="field field-wide">
+						<label for="provider-name">Provider 名称</label
+						><input
+							id="provider-name"
+							type="text"
+							formControlName="name"
+							placeholder="例如 YKKCLOUD"
+							autocomplete="off" />@if (provider.controls.name.touched && provider.controls.name.invalid)
+						{
+						<p class="field-error">名称不能为空、前后不能有空格，且不能与已有 Provider 重复。</p>
+						}
 					</div>
-					<button class="add-button" type="button" (click)="addProxyProvider()">+ 添加订阅</button>
-				</div>
-				<div class="provider-list" formArrayName="proxyProviders">
-					@for (provider of proxyProviders.controls; track provider; let index = $index) {
-					<fieldset class="residential-card provider-card" [formGroupName]="index">
-						<legend>Provider {{ index + 1 }}</legend>
-						<button class="remove-button" type="button" (click)="removeProxyProvider(index)">
-							删除订阅
-						</button>
-						<div class="field field-wide">
-							<label [for]="'provider-name-' + index">Provider 名称</label
-							><input
-								[id]="'provider-name-' + index"
-								type="text"
-								formControlName="name"
-								placeholder="例如 YKKCLOUD"
-								autocomplete="off" />@if (provider.controls.name.touched &&
-							provider.controls.name.invalid) {
-							<p class="field-error">名称不能为空且前后不能有空格。</p>
-							}
-						</div>
-						<div class="field field-wide">
-							<label [for]="'provider-url-' + index">订阅 URL</label>
-							<input
-								[id]="'provider-url-' + index"
-								type="url"
-								formControlName="url"
-								placeholder="https://example.com/subscription?token=..."
-								spellcheck="false"
-								autocomplete="off" />
-							@if (provider.controls.url.touched && provider.controls.url.invalid) {
-							<p class="field-error">请输入完整的 HTTP 或 HTTPS 订阅地址。</p>
-							}
-						</div>
-					</fieldset>
-					}
+					<div class="field field-wide">
+						<label for="provider-url">订阅 URL</label>
+						<input
+							id="provider-url"
+							type="url"
+							formControlName="url"
+							placeholder="https://example.com/subscription?token=..."
+							spellcheck="false"
+							autocomplete="off" />
+						@if (provider.controls.url.touched && provider.controls.url.invalid) {
+						<p class="field-error">请输入完整的 HTTP 或 HTTPS 订阅地址。</p>
+						}
+					</div>
 				</div>
 				@if (proxyProviders.touched && proxyProviders.hasError("duplicateNames")) {
 				<p class="form-error">每份订阅必须使用不同的 Provider 名称。</p>
@@ -161,8 +150,14 @@
 			</section>
 		</div>
 		<footer class="modal-actions">
-			<button class="clear-button" type="button" (click)="clearSavedSettings()">清除全部已保存数据</button
-			><button class="download-button" type="submit">完成</button>
+			@if (editingProviderIndex() === null) {
+			<button class="clear-button" type="button" (click)="closeDialog()">取消添加</button>
+			} @else {
+			<button class="clear-button" type="button" (click)="removeProxyProvider(editingProviderIndex() ?? 0)">
+				删除订阅
+			</button>
+			}
+			<button class="download-button" type="submit">完成</button>
 		</footer>
 	</form>
 </div>
@@ -171,7 +166,7 @@
 	<form
 		class="modal compact-modal residential-modal"
 		[formGroup]="residential"
-		(ngSubmit)="closeDialog()"
+		(ngSubmit)="completeResidential()"
 		novalidate
 		role="dialog"
 		aria-modal="true"
@@ -179,8 +174,11 @@
 		(click)="$event.stopPropagation()">
 		<header class="modal-heading">
 			<div>
-				<span class="step">节点</span>
-				<h2 id="residential-heading">编辑住宅节点 {{ (editingResidentialIndex() ?? 0) + 1 }}</h2>
+				<span class="step">{{ editingResidentialIndex() === null ? '新增节点' : '节点' }}</span>
+				<h2 id="residential-heading">
+					{{ editingResidentialIndex() === null ? '添加' : '编辑' }}住宅节点 {{ editingResidentialIndex() ===
+					null ? residentials.length + 1 : (editingResidentialIndex() ?? 0) + 1 }}
+				</h2>
 			</div>
 			<button class="close-button" type="button" (click)="closeDialog()" aria-label="关闭节点编辑窗口">×</button>
 		</header>
@@ -218,7 +216,9 @@
 							placeholder="例如 US-IP"
 							autocomplete="off" />@if (residential.controls.name.touched &&
 						residential.controls.name.invalid) {
-						<p class="field-error">名称不能为空、前后不能有空格，且不能与 Mihomo 策略名称冲突。</p>
+						<p class="field-error">
+							名称不能为空、前后不能有空格，不能与已有节点重复，且不能与 Mihomo 策略名称冲突。
+						</p>
 						}
 					</div>
 					<div class="field server-field">
@@ -273,9 +273,14 @@
 			</section>
 		</div>
 		<footer class="modal-actions">
+			@if (editingResidentialIndex() === null) {
+			<button class="clear-button" type="button" (click)="closeDialog()">取消添加</button>
+			} @else {
 			<button class="clear-button" type="button" (click)="removeResidential(editingResidentialIndex() ?? 0)">
-				删除节点</button
-			><button class="download-button" type="submit">完成</button>
+				删除节点
+			</button>
+			}
+			<button class="download-button" type="submit">完成</button>
 		</footer>
 	</form>
 </div>

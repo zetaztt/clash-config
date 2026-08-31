@@ -276,6 +276,8 @@ function createProxySummary(value: {
 export class App {
 	private readonly destroyRef = inject(DestroyRef);
 	private suppressAutoSave = false;
+	private providerDraft: ProxyProviderForm | null = null;
+	private residentialDraft: ResidentialForm | null = null;
 	protected readonly form = new FormGroup({
 		proxyProviders: new FormArray<ProxyProviderForm>([], [uniqueNames]),
 		residentials: new FormArray<ResidentialForm>([], [uniqueNames]),
@@ -285,7 +287,8 @@ export class App {
 	protected readonly copyComplete = signal(false);
 	protected readonly proxyLinkError = signal<string | null>(null);
 	protected readonly autoSaveError = signal(false);
-	protected readonly activeDialog = signal<"subscription" | "residential" | null>(null);
+	protected readonly activeDialog = signal<"provider" | "residential" | null>(null);
+	protected readonly editingProviderIndex = signal<number | null>(null);
 	protected readonly editingResidentialIndex = signal<number | null>(null);
 	protected readonly summary = signal<ProxySummary>(createProxySummary(this.form.getRawValue()));
 
@@ -308,21 +311,33 @@ export class App {
 	}
 
 	protected addProxyProvider(): void {
-		this.proxyProviders.push(createProxyProviderForm());
-		this.openSubscriptionEditor();
+		this.providerDraft = createProxyProviderForm();
+		this.residentialDraft = null;
+		this.downloadComplete.set(false);
+		this.copyComplete.set(false);
+		this.editingProviderIndex.set(null);
+		this.editingResidentialIndex.set(null);
+		this.activeDialog.set("provider");
 	}
 
 	protected removeProxyProvider(index: number): void {
 		if (index >= 0 && index < this.proxyProviders.length) {
 			this.proxyProviders.removeAt(index);
+			this.downloadComplete.set(false);
+			this.copyComplete.set(false);
+			this.closeDialog();
 		}
 	}
 
 	protected addResidential(): void {
-		this.residentials.push(createResidentialForm());
+		this.residentialDraft = createResidentialForm();
+		this.providerDraft = null;
 		this.downloadComplete.set(false);
 		this.copyComplete.set(false);
-		this.openResidentialEditor(this.residentials.length - 1);
+		this.editingProviderIndex.set(null);
+		this.editingResidentialIndex.set(null);
+		this.proxyLinkError.set(null);
+		this.activeDialog.set("residential");
 	}
 
 	protected removeResidential(index: number): void {
@@ -334,15 +349,24 @@ export class App {
 		}
 	}
 
-	protected openSubscriptionEditor(): void {
+	protected openProviderEditor(index: number): void {
+		if (index < 0 || index >= this.proxyProviders.length) {
+			return;
+		}
+		this.providerDraft = null;
+		this.residentialDraft = null;
+		this.editingProviderIndex.set(index);
 		this.editingResidentialIndex.set(null);
-		this.activeDialog.set("subscription");
+		this.activeDialog.set("provider");
 	}
 
 	protected openResidentialEditor(index: number): void {
 		if (index < 0 || index >= this.residentials.length) {
 			return;
 		}
+		this.providerDraft = null;
+		this.residentialDraft = null;
+		this.editingProviderIndex.set(null);
 		this.editingResidentialIndex.set(index);
 		this.proxyLinkError.set(null);
 		this.activeDialog.set("residential");
@@ -350,13 +374,69 @@ export class App {
 
 	protected closeDialog(): void {
 		this.activeDialog.set(null);
+		this.providerDraft = null;
+		this.residentialDraft = null;
+		this.editingProviderIndex.set(null);
 		this.editingResidentialIndex.set(null);
 		this.proxyLinkError.set(null);
 	}
 
 	protected get editingResidential(): ResidentialForm | null {
 		const index = this.editingResidentialIndex();
-		return index === null ? null : (this.residentials.at(index) ?? null);
+		return index === null ? this.residentialDraft : (this.residentials.at(index) ?? null);
+	}
+
+	protected get editingProvider(): ProxyProviderForm | null {
+		const index = this.editingProviderIndex();
+		return index === null ? this.providerDraft : (this.proxyProviders.at(index) ?? null);
+	}
+
+	protected completeProvider(): void {
+		const provider = this.editingProvider;
+		if (provider === null) {
+			return;
+		}
+		provider.markAllAsTouched();
+		if (provider.invalid) {
+			return;
+		}
+
+		if (this.editingProviderIndex() === null) {
+			if (
+				this.proxyProviders.controls.some(
+					(existing) => existing.controls.name.value === provider.controls.name.value,
+				)
+			) {
+				provider.controls.name.setErrors({ duplicate: true });
+				return;
+			}
+			this.proxyProviders.push(provider);
+		}
+		this.closeDialog();
+	}
+
+	protected completeResidential(): void {
+		const residential = this.editingResidential;
+		if (residential === null) {
+			return;
+		}
+		residential.markAllAsTouched();
+		if (residential.invalid) {
+			return;
+		}
+
+		if (this.editingResidentialIndex() === null) {
+			if (
+				this.residentials.controls.some(
+					(existing) => existing.controls.name.value === residential.controls.name.value,
+				)
+			) {
+				residential.controls.name.setErrors({ duplicate: true });
+				return;
+			}
+			this.residentials.push(residential);
+		}
+		this.closeDialog();
 	}
 
 	/** 链接只用于当前弹窗填充表单，不写入浏览器持久化存储。 */
@@ -377,6 +457,8 @@ export class App {
 	/** 同时清空当前表单和持久化副本，避免下一次值变更立即重新写入旧凭据。 */
 	protected clearSavedSettings(): void {
 		this.suppressAutoSave = true;
+		this.providerDraft = null;
+		this.residentialDraft = null;
 		this.proxyProviders.clear({ emitEvent: false });
 		this.residentials.clear({ emitEvent: false });
 		this.form.markAsUntouched();
@@ -463,7 +545,8 @@ export class App {
 		this.form.markAllAsTouched();
 		if (this.form.invalid) {
 			if (this.proxyProviders.invalid) {
-				this.openSubscriptionEditor();
+				const invalidIndex = this.proxyProviders.controls.findIndex((provider) => provider.invalid);
+				this.openProviderEditor(Math.max(invalidIndex, 0));
 			} else {
 				const invalidIndex = this.residentials.controls.findIndex((residential) => residential.invalid);
 				this.openResidentialEditor(Math.max(invalidIndex, 0));
