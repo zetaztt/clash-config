@@ -130,7 +130,7 @@
 								[id]="'provider-name-' + index"
 								type="text"
 								formControlName="name"
-								placeholder="可从订阅响应头读取"
+								placeholder="例如 YKKCLOUD"
 								autocomplete="off" />@if (provider.controls.name.touched &&
 							provider.controls.name.invalid) {
 							<p class="field-error">名称不能为空且前后不能有空格。</p>
@@ -138,22 +138,13 @@
 						</div>
 						<div class="field field-wide">
 							<label [for]="'provider-url-' + index">订阅 URL</label>
-							<div class="proxy-link-input">
-								<input
-									[id]="'provider-url-' + index"
-									type="url"
-									formControlName="url"
-									placeholder="https://example.com/subscription?token=..."
-									spellcheck="false"
-									autocomplete="off" />
-								<button
-									class="parse-link-button provider-name-button"
-									type="button"
-									[disabled]="readingProviderIndex() !== null"
-									(click)="readProxyProviderName(index)">
-									{{ readingProviderIndex() === index ? '读取中…' : '读取名称' }}
-								</button>
-							</div>
+							<input
+								[id]="'provider-url-' + index"
+								type="url"
+								formControlName="url"
+								placeholder="https://example.com/subscription?token=..."
+								spellcheck="false"
+								autocomplete="off" />
 							@if (provider.controls.url.touched && provider.controls.url.invalid) {
 							<p class="field-error">请输入完整的 HTTP 或 HTTPS 订阅地址。</p>
 							}
@@ -163,12 +154,9 @@
 				</div>
 				@if (proxyProviders.touched && proxyProviders.hasError("duplicateNames")) {
 				<p class="form-error">每份订阅必须使用不同的 Provider 名称。</p>
-				} @if (providerNameError()) {
-				<p class="form-error" role="alert">{{ providerNameError() }}</p>
 				}
 				<p class="field-hint">
-					“读取名称”会直接请求订阅服务，并按 Content-Disposition 的 filename*、filename
-					顺序读取；不会经过本站服务器。可以不添加 Provider，此时“代理节点”的 Provider 列表为空。
+					Provider 名称需要手动填写。可以不添加 Provider，此时“代理节点”的 Provider 列表为空。
 				</p>
 			</section>
 		</div>

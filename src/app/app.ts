@@ -12,7 +12,6 @@ import {
 
 import { createMihomoYaml } from "../config-yaml";
 import { isReservedProxyName } from "../proxies-config";
-import { fetchProxyProviderName } from "../proxy-provider-name";
 
 type ProxyProviderForm = FormGroup<{
 	name: FormControl<string>;
@@ -285,8 +284,6 @@ export class App {
 	protected readonly downloadComplete = signal(false);
 	protected readonly copyComplete = signal(false);
 	protected readonly proxyLinkError = signal<string | null>(null);
-	protected readonly providerNameError = signal<string | null>(null);
-	protected readonly readingProviderIndex = signal<number | null>(null);
 	protected readonly autoSaveError = signal(false);
 	protected readonly activeDialog = signal<"subscription" | "residential" | null>(null);
 	protected readonly editingResidentialIndex = signal<number | null>(null);
@@ -312,14 +309,12 @@ export class App {
 
 	protected addProxyProvider(): void {
 		this.proxyProviders.push(createProxyProviderForm());
-		this.providerNameError.set(null);
 		this.openSubscriptionEditor();
 	}
 
 	protected removeProxyProvider(index: number): void {
 		if (index >= 0 && index < this.proxyProviders.length) {
 			this.proxyProviders.removeAt(index);
-			this.providerNameError.set(null);
 		}
 	}
 
@@ -341,34 +336,7 @@ export class App {
 
 	protected openSubscriptionEditor(): void {
 		this.editingResidentialIndex.set(null);
-		this.providerNameError.set(null);
 		this.activeDialog.set("subscription");
-	}
-
-	/** 仅在用户点击后直连订阅服务读取名称；失败信息不回显订阅地址或响应内容。 */
-	protected async readProxyProviderName(index: number): Promise<void> {
-		const provider = this.proxyProviders.at(index);
-		if (provider === undefined) {
-			return;
-		}
-		provider.controls.url.markAsTouched();
-		if (provider.controls.url.invalid) {
-			this.providerNameError.set("请先填写有效的 HTTP 或 HTTPS 订阅地址。");
-			return;
-		}
-
-		this.providerNameError.set(null);
-		this.readingProviderIndex.set(index);
-		try {
-			provider.controls.name.setValue(await fetchProxyProviderName(provider.controls.url.value));
-			provider.controls.name.markAsTouched();
-		} catch {
-			this.providerNameError.set(
-				"无法读取订阅名称。请手动填写；浏览器无法伪装 Clash Verge 的 User-Agent，跨域服务也必须暴露 Content-Disposition。",
-			);
-		} finally {
-			this.readingProviderIndex.set(null);
-		}
 	}
 
 	protected openResidentialEditor(index: number): void {

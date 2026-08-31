@@ -327,11 +327,6 @@ input.ng-touched.ng-invalid {
 	gap: 16px;
 }
 
-.provider-name-button:disabled {
-	cursor: wait;
-	opacity: 0.6;
-}
-
 .residential-card {
 	position: relative;
 	display: grid;

@@ -45,52 +45,20 @@ describe("App", () => {
 		expect(element.querySelector(".residential-modal")).toBeNull();
 	});
 
-	it("adds multiple providers and reads a name from Content-Disposition", async () => {
+	it("adds multiple providers with manually entered names", async () => {
 		const fixture = TestBed.createComponent(App);
 		await fixture.whenStable();
 		const element = fixture.nativeElement as HTMLElement;
-		const fetchResponse = {
-			ok: true,
-			headers: new Headers({
-				"Content-Disposition": `attachment; filename="fallback"; filename*=UTF-8''Synthetic%20Airport`,
-			}),
-			body: null,
-		} as Response;
-		const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(fetchResponse);
 
 		element.querySelectorAll<HTMLButtonElement>(".summary-buttons .summary-edit-button")[1]?.click();
 		await fixture.whenStable();
+		fillInput(element, "#provider-name-0", "Synthetic Airport");
 		fillInput(element, "#provider-url-0", "https://example.com/subscription?token=synthetic");
-		element.querySelector<HTMLButtonElement>(".provider-name-button")?.click();
-		await fixture.whenStable();
-
-		expect(fetchSpy).toHaveBeenCalledWith("https://example.com/subscription?token=synthetic", {
-			method: "GET",
-			credentials: "omit",
-			cache: "no-store",
-			referrerPolicy: "no-referrer",
-		});
 		expect(element.querySelector<HTMLInputElement>("#provider-name-0")?.value).toBe("Synthetic Airport");
 
 		element.querySelector<HTMLButtonElement>(".add-button")?.click();
 		await fixture.whenStable();
 		expect(element.querySelectorAll(".provider-card")).toHaveLength(2);
-	});
-
-	it("shows a safe manual-name fallback when the subscription header cannot be read", async () => {
-		const fixture = TestBed.createComponent(App);
-		await fixture.whenStable();
-		const element = fixture.nativeElement as HTMLElement;
-		vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("synthetic CORS failure"));
-
-		element.querySelectorAll<HTMLButtonElement>(".summary-buttons .summary-edit-button")[1]?.click();
-		await fixture.whenStable();
-		fillInput(element, "#provider-url-0", "https://example.com/private-token");
-		element.querySelector<HTMLButtonElement>(".provider-name-button")?.click();
-		await fixture.whenStable();
-
-		expect(element.textContent).toContain("无法读取订阅名称。请手动填写");
-		expect(element.textContent).not.toContain("private-token");
 	});
 
 	it("opens an individual node editor and adds a node directly into its editor", async () => {
