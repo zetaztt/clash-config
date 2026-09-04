@@ -304,6 +304,7 @@ export function createMihomoConfig(proxiesConfig: ProxiesConfig): MihomoConfig {
 		"log-level": "info",
 		ipv6: true,
 		"tcp-concurrent": true,
+		"find-process-mode": "always",
 		dns: {
 			enable: true,
 			"use-hosts": true,

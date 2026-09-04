@@ -121,6 +121,7 @@ export interface MihomoConfig {
 	"log-level": "debug" | "info" | "warning" | "error" | "silent";
 	ipv6: boolean;
 	"tcp-concurrent": true;
+	"find-process-mode": "always";
 	dns: MihomoDnsSettings;
 	profile: MihomoProfileSettings;
 	"proxy-providers": Record<string, MihomoHttpProxyProvider>;
